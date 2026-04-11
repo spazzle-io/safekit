@@ -3,8 +3,9 @@ package mock
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"github.com/spazzle-io/safekit/pkg/version"
 	"math/big"
+
+	"github.com/spazzle-io/safekit/pkg/version"
 
 	"github.com/ethereum/go-ethereum/common"
 

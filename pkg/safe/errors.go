@@ -2,6 +2,7 @@ package safe
 
 import (
 	"fmt"
+
 	"github.com/spazzle-io/safekit/internal/deployer"
 	"github.com/spazzle-io/safekit/internal/versions"
 )
@@ -29,7 +30,7 @@ var (
 
 	// ErrTransactionReverted is returned when the deployment transaction was mined but reverted on-chain.
 	ErrTransactionReverted = deployer.ErrTransactionReverted
-	
+
 	// ErrInvalidThreshold is returned when the threshold exceeds the number of owners or is zero.
 	ErrInvalidThreshold = fmt.Errorf("invalid threshold")
 

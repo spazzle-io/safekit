@@ -62,7 +62,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-	
+
     // if your private key is already in memory (e.g. loaded from a secrets manager),
     // use NewSignerFromHex instead:
     //
@@ -94,8 +94,8 @@ func main() {
     }
 
     // predict the address before deploying
-    // predicting an address is pure computation. It doesn't make network calls, 
-    // on-chain transactions, or consume gas. 
+    // predicting an address is pure computation. It doesn't make network calls,
+    // on-chain transactions, or consume gas.
     addr, err := client.PredictAddress(owners, 2, salt)
     if err != nil {
         log.Fatal(err)

@@ -2,8 +2,9 @@ package safe
 
 import (
 	"errors"
-	"github.com/spazzle-io/safekit/pkg/version"
 	"testing"
+
+	"github.com/spazzle-io/safekit/pkg/version"
 
 	"github.com/ethereum/go-ethereum/common"
 
