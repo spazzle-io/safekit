@@ -36,18 +36,46 @@ go test -v -race ./...
 
 ## Code style
 
-<!-- placeholder: will be updated once golangci-lint config is added -->
+SafeKit uses golangci-lint for linting and gofumpt for formatting.
+The full linter configuration is in `.golangci.yml` at the root of the repository.
 
-Run the linter before submitting:
+To run the linter locally:
 
 ```bash
 golangci-lint run ./...
 ```
 
+To auto-fix formatting issues:
+
+```bash
+golangci-lint run --fix ./...
+```
+
 ## Commit messages
 
-<!-- placeholder: will be updated once release-please and conventional
-commits are configured -->
+SafeKit uses [conventional commits](https://www.conventionalcommits.org).
+Your PR title must follow this format:
+
+```
+<type>: <description>
+
+feat: add support for Arbitrum chain
+fix: correct salt derivation for nil input
+docs: update README quick start example
+chore: bump go-ethereum to v1.15.0
+refactor: simplify deployer gas estimation
+test: add integration test for v1.5.0
+ci: pin golangci-lint to v2.11.4
+```
+
+The PR title is validated automatically when you open a pull request. The
+allowed types are `feat`, `fix`, `docs`, `chore`, `refactor`, `test`,
+and `ci`.
+
+release-please uses these commit messages to generate the CHANGELOG and
+determine version bumps. `feat` bumps the minor version, `fix` bumps the
+patch version, and `feat!` or `BREAKING CHANGE` in the footer bumps the
+major version.
 
 ## Running integration tests
 
