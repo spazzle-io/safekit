@@ -20,6 +20,7 @@ repos:
         pass_filenames: false
 
 ci:
+  skip: [golangci-lint]
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit.com hooks
     for more information, see https://pre-commit.ci
