@@ -10,3 +10,5 @@ coverage:
         target: 0%
         threshold: 50%
         base: auto
+ignore:
+  - "internal/versions/v\\d+_\\d+_\\d+/**/*"
