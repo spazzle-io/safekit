@@ -9,7 +9,8 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/spazzle-io/safekit/actions/workflows/ci.yml/badge.svg" alt="Tests">
+  <img src="https://github.com/spazzle-io/safekit/actions/workflows/ci.yml/badge.svg" alt="CI Tests">
+  <img src="https://github.com/spazzle-io/safekit/actions/workflows/integration.yml/badge.svg" alt="Integration Tests">
   <a href="https://codecov.io/gh/spazzle-io/safekit">
     <img src="https://codecov.io/gh/spazzle-io/safekit/graph/badge.svg?token=L3AFHQO29M" alt="codecov">
   </a>
