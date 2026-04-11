@@ -7,11 +7,16 @@ need to get started.
 
 For anything beyond a typo fix, please open an issue before submitting a pull
 request. This saves everyone time. We can discuss the approach before you
-invest effort writing code. For bug reports, include the Go version, chain,
-Safe version, and the full error message.
+invest effort writing code.
 
-For feature requests, describe the use case. What are you building? What does
-SafeKit not provide?
+Use the appropriate issue template:
+- **Bug report** — include your Go version, SafeKit version, chain, Safe
+  version, steps to reproduce, and the full error message
+- **Feature request** — describe the use case and what SafeKit does not currently provide.
+- **General inquiry** — for anything else
+
+Pull requests should reference an open issue. The PR template will prompt you
+for this.
 
 ## Setting up
 
