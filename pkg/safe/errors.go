@@ -2,6 +2,7 @@ package safe
 
 import (
 	"fmt"
+
 	"github.com/spazzle-io/safekit/internal/deployer"
 	"github.com/spazzle-io/safekit/internal/versions"
 )

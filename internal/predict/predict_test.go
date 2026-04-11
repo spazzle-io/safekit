@@ -2,9 +2,10 @@ package predict
 
 import (
 	"encoding/hex"
-	"github.com/spazzle-io/safekit/internal/versions"
 	"math/big"
 	"testing"
+
+	"github.com/spazzle-io/safekit/internal/versions"
 
 	"github.com/ethereum/go-ethereum/common"
 )

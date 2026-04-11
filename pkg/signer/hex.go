@@ -2,8 +2,9 @@ package signer
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/crypto"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // NewSignerFromHex creates a Signer from a hex-encoded private key string.

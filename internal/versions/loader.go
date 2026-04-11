@@ -89,7 +89,7 @@ func Load(jsonBytes []byte, chainID *big.Int) (*ParsedDeployment, error) {
 
 	preferredType := ""
 	for _, dt := range deploymentTypes {
-		if strings.ToLower(dt) != strings.ToLower(zksyncDeploymentType) {
+		if !strings.EqualFold(dt, zksyncDeploymentType) {
 			preferredType = dt
 			break
 		}

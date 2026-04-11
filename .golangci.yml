@@ -1,14 +1,18 @@
 version: "2"
+
 formatters:
   enable:
     - gofumpt
     - goimports
+
 linters:
   enable:
     - goconst
     - gocritic
     - gosec
     - misspell
+    - staticcheck
+
   exclusions:
     rules:
       - linters:
