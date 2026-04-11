@@ -198,6 +198,19 @@ result, err := client.WaitForDeployment(ctx, owners, threshold, salt, txHash)
 deployed, err := client.IsDeployed(ctx, predictedSafeAddress)
 ```
 
+## Configuration
+
+```go
+client, err := safe.New(safe.Options{
+    Chain:         chain.Base,
+    RPC:           os.Getenv("RPC_URL"),
+    Signer:        s,
+    Version:       version.V141,
+    DeployTimeout: 3 * time.Minute, // default: 5 minutes
+    GasMultiplier: 1.3,             // default: 1.2
+})
+```
+
 ## Testing your application
 
 SafeKit ships a mock client that implements the same interface as the real client. It uses real CREATE2 math so predicted and deployed addresses always agree, but makes no network calls.
@@ -213,43 +226,7 @@ result, err := client.Deploy(ctx, owners, threshold, salt)
 // result.SafeAddress == addr, always, no network needed
 ```
 
-Your application code should depend on the `safe.Deployer` interface rather than `*safe.Client` directly. This makes swapping in the mock client trivial e.g.
-
-```go
-type WalletService struct {
-    safe safe.Deployer
-}
-```
-
-## Error handling
-
-All errors can be checked with `errors.Is`:
-
-```go
-result, err := client.Deploy(ctx, owners, threshold, salt)
-if errors.Is(err, safe.ErrAddressAlreadyDeployed) {
-    // Safe already exists at this address
-}
-if errors.Is(err, safe.ErrDeployTimeout) {
-    // transaction did not mine within the configured timeout
-}
-if errors.Is(err, safe.ErrVersionNotOnChain) {
-    // this Safe version is not deployed on the configured chain
-}
-```
-
-## Configuration
-
-```go
-client, err := safe.New(safe.Options{
-    Chain:         chain.Base,
-    RPC:           os.Getenv("RPC_URL"),
-    Signer:        s,
-    Version:       version.V141,
-    DeployTimeout: 3 * time.Minute, // default: 5 minutes
-    GasMultiplier: 1.3,             // default: 1.2
-})
-```
+Your application code should depend on the `safe.Deployer` interface rather than `*safe.Client` directly. This makes swapping in the mock client trivial.
 
 ## License
 
