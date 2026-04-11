@@ -160,7 +160,7 @@ SafeKit ships with built-in support for the following chains:
 | Optimism Sepolia | 11155420 |
 | BNB Smart Chain  | 56       |
 | BSC Testnet      | 97       |
-| Sepolia          | 11155111 |
+| Ethereum Sepolia | 11155111 |
 | Base Sepolia     | 84532    |
 
 The full list is in `pkg/chain/known.go`. If your target chain is not listed,
