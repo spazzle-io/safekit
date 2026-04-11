@@ -11,6 +11,6 @@ func generateRandomSalt() ([]byte, error) {
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("failed to generate random salt: %w", err)
 	}
-	
+
 	return b, nil
 }
