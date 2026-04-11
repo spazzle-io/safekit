@@ -3,6 +3,7 @@ package mock
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"github.com/spazzle-io/safekit/pkg/version"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +18,7 @@ import (
 // predictAddress computes the real CREATE2 address for the given config.
 // Uses v1.4.1 on Ethereum mainnet as the mock's fixed context.
 func predictAddress(owners []common.Address, threshold uint8, salt []byte) (common.Address, error) {
-	deployment, err := versions.Get(versions.Version141)
+	deployment, err := versions.Get(version.V141)
 	if err != nil {
 		return common.Address{}, err
 	}
