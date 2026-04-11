@@ -5,12 +5,15 @@
 </p>
 
 <p align="center">
-  <em>Go library for deploying and predicting Safe{Global} multisig wallet addresses on any EVM chain.</em>
+  <em>Go library for deploying and predicting Gnosis Safe multisig wallet addresses on any EVM chain.</em>
 </p>
 
 <p align="center">
   <img src="https://github.com/spazzle-io/safekit/actions/workflows/ci.yml/badge.svg" alt="CI Tests">
   <img src="https://github.com/spazzle-io/safekit/actions/workflows/integration.yml/badge.svg" alt="Integration Tests">
+  <a href="https://pkg.go.dev/github.com/spazzle-io/safekit">
+    <img src="https://pkg.go.dev/badge/github.com/spazzle-io/safekit.svg" alt="Go Reference">
+  </a>
   <a href="https://codecov.io/gh/spazzle-io/safekit">
     <img src="https://codecov.io/gh/spazzle-io/safekit/graph/badge.svg?token=L3AFHQO29M" alt="codecov">
   </a>
@@ -21,7 +24,7 @@
 
 ---
 
-There is no official Go SDK for Safe{Global}. SafeKit fills that gap.
+There is no official Go SDK for Gnosis Safe (now Safe{Wallet}). SafeKit fills that gap.
 
 It lets you predict the address a Safe will be deployed to before it exists on-chain, and deploy it when you are ready. The predicted address is verified against the deployed address on every deployment so you always know they match.
 
@@ -38,6 +41,8 @@ Supports Safe v1.3.0, v1.4.1, and v1.5.0 on any EVM-compatible chain.
 ```bash
 go get github.com/spazzle-io/safekit
 ```
+
+Full API reference is available on [pkg.go.dev](https://pkg.go.dev/github.com/spazzle-io/safekit).
 
 ## Quick start
 
