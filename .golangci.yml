@@ -1,0 +1,17 @@
+version: "2"
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+linters:
+  enable:
+    - goconst
+    - gocritic
+    - gosec
+    - misspell
+  exclusions:
+    rules:
+      - linters:
+          - goconst
+          - gosec
+        path: _test\.go

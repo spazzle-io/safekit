@@ -1,0 +1,28 @@
+name: 'Close stale issues'
+on:
+  schedule:
+    - cron: '30 1 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 90
+          days-before-close: 10
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          exempt-issue-labels: 'security'
+          stale-issue-label: 'stale'
+          stale-issue-message: >
+            Hey there! 👋
+            It's been a bit quiet around this issue
+            Just wanted to let you know that we usually close issues after 100 days of inactivity, and it's been about 90 days since we last heard from you.
+            If you need more time or have anything to add, feel free to reply here. Your input is valuable to us!
+            Thanks a bunch for being a part of the community! 💚
+          close-issue-message: >
+            Hello again! 👋
+            It's been 100 days since the last update on this issue. Consequently, we are closing this issue due to inactivity.
+            Should the issue persist, feel free to reopen it and provide an updated description. We're committed to doing our best to address it!
+            Appreciate all your contributions! 💚
