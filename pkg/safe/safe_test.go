@@ -2,6 +2,7 @@ package safe
 
 import (
 	"errors"
+	"github.com/spazzle-io/safekit/pkg/version"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,7 +22,7 @@ var testOwners = []common.Address{
 func newTestClient(t *testing.T) *Client {
 	t.Helper()
 
-	deployment, err := versions.Get(versions.Version141)
+	deployment, err := versions.Get(version.V141)
 	if err != nil {
 		t.Fatalf("failed to get deployment: %v", err)
 	}
@@ -39,7 +40,7 @@ func TestNew_MissingChain(t *testing.T) {
 	_, err := New(Options{
 		RPC:     "http://localhost:8545",
 		Signer:  signer.NewMockSigner(0),
-		Version: versions.Version141,
+		Version: version.V141,
 	})
 	if err == nil {
 		t.Fatal("expected error for missing Chain, got nil")
@@ -50,7 +51,7 @@ func TestNew_MissingRPC(t *testing.T) {
 	_, err := New(Options{
 		Chain:   chain.Ethereum,
 		Signer:  signer.NewMockSigner(0),
-		Version: versions.Version141,
+		Version: version.V141,
 	})
 	if err == nil {
 		t.Fatal("expected error for missing RPC, got nil")
@@ -61,7 +62,7 @@ func TestNew_MissingSigner(t *testing.T) {
 	_, err := New(Options{
 		Chain:   chain.Ethereum,
 		RPC:     "http://localhost:8545",
-		Version: versions.Version141,
+		Version: version.V141,
 	})
 	if err == nil {
 		t.Fatal("expected error for missing Signer, got nil")

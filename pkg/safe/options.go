@@ -37,7 +37,7 @@ type Options struct {
 	Signer signer.Signer
 
 	// Version is the Safe contract version to deploy.
-	// Use the constants from pkg/version e.g. version.Version141.
+	// Use the constants from pkg/version e.g. version.V141.
 	// Required.
 	Version versions.Version
 
