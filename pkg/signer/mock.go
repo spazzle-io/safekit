@@ -33,7 +33,7 @@ type MockSigner struct {
 func NewMockSigner(seed uint64) Signer {
 	seedBytes := make([]byte, 8)
 	for i := range 8 {
-		seedBytes[7-i] = byte(seed >> (8 * i))
+		seedBytes[7-i] = byte((seed >> (8 * i)) & 0xff)
 	}
 
 	keyBytes := crypto.Keccak256(seedBytes)
