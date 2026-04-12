@@ -24,12 +24,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/spazzle-io/safekit/internal/deployer"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/spazzle-io/safekit/internal/versions"
 	"github.com/spazzle-io/safekit/pkg/chain"
-	"github.com/spazzle-io/safekit/pkg/signer"
 )
 
 // Deployer is the interface implemented by Client.
@@ -51,8 +50,7 @@ var _ Deployer = (*Client)(nil)
 // when done.
 type Client struct {
 	chain      *chain.Chain
-	eth        *ethclient.Client
-	signer     signer.Signer
+	deployer   *deployer.Deployer
 	deployment versions.Deployment
 	opts       *Options
 }
@@ -96,8 +94,7 @@ func New(opts Options) (*Client, error) {
 
 	return &Client{
 		chain:      opts.Chain,
-		eth:        eth,
-		signer:     opts.Signer,
+		deployer:   deployer.NewDeployer(eth, opts.Signer),
 		deployment: deployment,
 		opts:       &opts,
 	}, nil
@@ -106,11 +103,11 @@ func New(opts Options) (*Client, error) {
 // Close releases the RPC connection and zeroes the signer's key material.
 // Always call this when done with a Client.
 func (c *Client) Close() {
-	if c.eth != nil {
-		c.eth.Close()
+	if c.deployer.Client != nil {
+		c.deployer.Client.Close()
 	}
 
-	if c.signer != nil {
-		c.signer.Close()
+	if c.deployer.Signer != nil {
+		c.deployer.Signer.Close()
 	}
 }
