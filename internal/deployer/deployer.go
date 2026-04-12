@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -20,6 +21,12 @@ import (
 // defaultDeployTimeout is how long Deploy will wait for a transaction
 // to be mined before giving up.
 const defaultDeployTimeout = 5 * time.Minute
+
+type Deployer struct {
+	Client  *ethclient.Client
+	Signer  signer.Signer
+	nonceMu sync.Mutex
+}
 
 // Result is returned after a successful Safe deployment.
 type Result struct {
@@ -60,19 +67,27 @@ func (o *Options) timeout() time.Duration {
 	return o.Timeout
 }
 
+func NewDeployer(client *ethclient.Client, signer signer.Signer) *Deployer {
+	return &Deployer{
+		Client: client,
+		Signer: signer,
+	}
+}
+
 // Submit builds and submits the deployment transaction, returning the
 // transaction hash immediately without waiting for it to be mined.
 // Use Wait to retrieve the result once mined.
-func Submit(
+func (d *Deployer) Submit(
 	ctx context.Context,
-	client *ethclient.Client,
-	s signer.Signer,
 	deployment versions.Deployment,
 	chainID *big.Int,
 	isL2 bool,
 	input predict.Input,
 	opts *Options,
 ) (common.Hash, error) {
+	d.nonceMu.Lock()
+	defer d.nonceMu.Unlock()
+
 	predictedAddr, err := predict.Address(input, deployment, chainID, isL2)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("address prediction failed: %w", err)
@@ -88,12 +103,12 @@ func Submit(
 		return common.Hash{}, fmt.Errorf("failed to get proxy factory: %w", err)
 	}
 
-	tx, err := buildTx(ctx, client, s, chainID, factory.Address, calldata, predictedAddr, opts)
+	tx, err := buildTx(ctx, d.Client, d.Signer, chainID, factory.Address, calldata, predictedAddr, opts)
 	if err != nil {
 		return common.Hash{}, err
 	}
 
-	if err := client.SendTransaction(ctx, tx); err != nil {
+	if err := d.Client.SendTransaction(ctx, tx); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to submit transaction: %w", err)
 	}
 
@@ -102,9 +117,8 @@ func Submit(
 
 // Wait waits for a previously submitted deployment transaction to be mined,
 // verifies the deployed address matches the prediction, and returns the result.
-func Wait(
+func (d *Deployer) Wait(
 	ctx context.Context,
-	client *ethclient.Client,
 	deployment versions.Deployment,
 	chainID *big.Int,
 	isL2 bool,
@@ -116,7 +130,7 @@ func Wait(
 		return nil, fmt.Errorf("address prediction failed: %w", err)
 	}
 
-	receipt, err := waitForReceipt(ctx, client, txHash)
+	receipt, err := waitForReceipt(ctx, d.Client, txHash)
 	if err != nil {
 		return nil, err
 	}
@@ -149,10 +163,8 @@ func Wait(
 
 // Deploy submits a deployment transaction and waits for it to be mined.
 // Use Submit and Wait if you need to deploy in a non-blocking fashion.
-func Deploy(
+func (d *Deployer) Deploy(
 	ctx context.Context,
-	client *ethclient.Client,
-	s signer.Signer,
 	deployment versions.Deployment,
 	chainID *big.Int,
 	isL2 bool,
@@ -164,7 +176,7 @@ func Deploy(
 		return nil, fmt.Errorf("address prediction failed: %w", err)
 	}
 
-	deployed, err := isDeployed(ctx, client, predictedAddr)
+	deployed, err := isDeployed(ctx, d.Client, predictedAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check deployment status: %w", err)
 	}
@@ -172,7 +184,7 @@ func Deploy(
 		return nil, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
 	}
 
-	txHash, err := Submit(ctx, client, s, deployment, chainID, isL2, input, opts)
+	txHash, err := d.Submit(ctx, deployment, chainID, isL2, input, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +192,7 @@ func Deploy(
 	timeoutCtx, cancel := context.WithTimeout(ctx, opts.timeout())
 	defer cancel()
 
-	return Wait(timeoutCtx, client, deployment, chainID, isL2, input, txHash)
+	return d.Wait(timeoutCtx, deployment, chainID, isL2, input, txHash)
 }
 
 func waitForReceipt(

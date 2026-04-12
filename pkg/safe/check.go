@@ -11,7 +11,7 @@ import (
 // address. Use this to check whether a predicted Safe address has been
 // deployed yet.
 func (c *Client) IsDeployed(ctx context.Context, addr common.Address) (bool, error) {
-	code, err := c.eth.CodeAt(ctx, addr, nil)
+	code, err := c.deployer.Client.CodeAt(ctx, addr, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to check deployment status: %w", err)
 	}

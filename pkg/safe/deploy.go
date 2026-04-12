@@ -50,10 +50,8 @@ func (c *Client) Deploy(
 		return nil, err
 	}
 
-	result, err := deployer.Deploy(
+	result, err := c.deployer.Deploy(
 		ctx,
-		c.eth,
-		c.signer,
 		c.deployment,
 		c.chain.ID,
 		c.chain.IsL2,
@@ -99,10 +97,8 @@ func (c *Client) SubmitDeployment(
 		return common.Hash{}, err
 	}
 
-	txHash, err := deployer.Submit(
+	txHash, err := c.deployer.Submit(
 		ctx,
-		c.eth,
-		c.signer,
 		c.deployment,
 		c.chain.ID,
 		c.chain.IsL2,
@@ -133,9 +129,8 @@ func (c *Client) WaitForDeployment(
 	salt []byte,
 	txHash common.Hash,
 ) (*DeployResult, error) {
-	result, err := deployer.Wait(
+	result, err := c.deployer.Wait(
 		ctx,
-		c.eth,
 		c.deployment,
 		c.chain.ID,
 		c.chain.IsL2,
