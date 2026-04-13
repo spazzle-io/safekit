@@ -23,9 +23,11 @@ import (
 const defaultDeployTimeout = 5 * time.Minute
 
 type Deployer struct {
-	Client  *ethclient.Client
-	Signer  signer.Signer
-	nonceMu sync.Mutex
+	Client   *ethclient.Client
+	Signer   signer.Signer
+	nonceMu  sync.Mutex
+	nonce    uint64
+	hasNonce bool
 }
 
 // Result is returned after a successful Safe deployment.
@@ -85,14 +87,6 @@ func (d *Deployer) Submit(
 	input predict.Input,
 	opts *Options,
 ) (common.Hash, error) {
-	d.nonceMu.Lock()
-	defer d.nonceMu.Unlock()
-
-	predictedAddr, err := predict.Address(input, deployment, chainID, isL2)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("address prediction failed: %w", err)
-	}
-
 	calldata, err := buildCalldata(input, deployment, chainID, isL2)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to build calldata: %w", err)
@@ -103,16 +97,59 @@ func (d *Deployer) Submit(
 		return common.Hash{}, fmt.Errorf("failed to get proxy factory: %w", err)
 	}
 
-	tx, err := buildTx(ctx, d.Client, d.Signer, chainID, factory.Address, calldata, predictedAddr, opts)
+	predictedAddr, err := predict.Address(input, deployment, chainID, isL2)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("address prediction failed: %w", err)
+	}
+
+	gasLimit, err := estimateGas(ctx, d.Client, d.Signer.Address(), factory.Address, calldata, opts.gasMultiplier())
+	if err != nil {
+		if alreadyDeployed, checkErr := isDeployed(ctx, d.Client, predictedAddr); checkErr == nil && alreadyDeployed {
+			return common.Hash{}, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
+		}
+		return common.Hash{}, err
+	}
+
+	tip, err := suggestGasTipCap(ctx, d.Client)
 	if err != nil {
 		return common.Hash{}, err
 	}
 
-	if err := d.Client.SendTransaction(ctx, tx); err != nil {
+	head, err := d.Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get latest block header: %w", err)
+	}
+
+	var gasPrice *big.Int
+	if head.BaseFee == nil {
+		gasPrice, err = suggestGasPrice(ctx, d.Client)
+		if err != nil {
+			return common.Hash{}, err
+		}
+	}
+
+	d.nonceMu.Lock()
+	defer d.nonceMu.Unlock()
+
+	nonce, err := d.nextNonce(ctx)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	tx := buildTxWithNonce(chainID, factory.Address, calldata, nonce, gasLimit, tip, head.BaseFee, gasPrice)
+
+	signed, err := d.Signer.SignTx(ctx, tx, chainID)
+	if err != nil {
+		d.hasNonce = false
+		return common.Hash{}, err
+	}
+
+	if err := d.Client.SendTransaction(ctx, signed); err != nil {
+		d.hasNonce = false
 		return common.Hash{}, fmt.Errorf("failed to submit transaction: %w", err)
 	}
 
-	return tx.Hash(), nil
+	return signed.Hash(), nil
 }
 
 // Wait waits for a previously submitted deployment transaction to be mined,
@@ -195,6 +232,23 @@ func (d *Deployer) Deploy(
 	return d.Wait(timeoutCtx, deployment, chainID, isL2, input, txHash)
 }
 
+func (d *Deployer) nextNonce(ctx context.Context) (uint64, error) {
+	if !d.hasNonce {
+		n, err := d.Client.PendingNonceAt(ctx, d.Signer.Address())
+		if err != nil {
+			return 0, err
+		}
+
+		d.nonce = n
+		d.hasNonce = true
+
+		return d.nonce, nil
+	}
+
+	d.nonce++
+	return d.nonce, nil
+}
+
 func waitForReceipt(
 	ctx context.Context,
 	client *ethclient.Client,
@@ -261,44 +315,25 @@ func deriveSaltNonce(salt []byte) [32]byte {
 	return predict.DeriveSaltNonce(salt)
 }
 
-// buildTx constructs and signs an EIP-1559 transaction.
-func buildTx(
-	ctx context.Context,
-	client *ethclient.Client,
-	s signer.Signer,
+func buildTxWithNonce(
 	chainID *big.Int,
 	to common.Address,
 	data []byte,
-	predictedAddr common.Address,
-	opts *Options,
-) (*types.Transaction, error) {
-	nonce, err := client.PendingNonceAt(ctx, s.Address())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	gasLimit, err := estimateGas(ctx, client, s.Address(), to, data, opts.gasMultiplier())
-	if err != nil {
-		if alreadyDeployed, checkErr := isDeployed(ctx, client, predictedAddr); checkErr == nil && alreadyDeployed {
-			return nil, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
-		}
-		return nil, err
-	}
-
-	tip, err := suggestGasTipCap(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-
-	head, err := client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get latest block header: %w", err)
-	}
-
-	baseFee := head.BaseFee
+	nonce uint64,
+	gasLimit uint64,
+	tip *big.Int,
+	baseFee *big.Int,
+	gasPrice *big.Int,
+) *types.Transaction {
 	if baseFee == nil {
-		// chain does not support EIP-1559. Fallback to legacy gas price
-		return buildLegacyTx(ctx, client, s, chainID, to, data, nonce, gasLimit)
+		return types.NewTx(&types.LegacyTx{
+			Nonce:    nonce,
+			GasPrice: gasPrice,
+			Gas:      gasLimit,
+			To:       &to,
+			Value:    big.NewInt(0),
+			Data:     data,
+		})
 	}
 
 	maxFee := new(big.Int).Add(
@@ -306,7 +341,7 @@ func buildTx(
 		tip,
 	)
 
-	tx := types.NewTx(&types.DynamicFeeTx{
+	return types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
 		Nonce:     nonce,
 		GasTipCap: tip,
@@ -316,36 +351,6 @@ func buildTx(
 		Value:     big.NewInt(0),
 		Data:      data,
 	})
-
-	return s.SignTx(ctx, tx, chainID)
-}
-
-// buildLegacyTx builds a pre-EIP-1559 transaction for chains that don't support dynamic fees.
-func buildLegacyTx(
-	ctx context.Context,
-	client *ethclient.Client,
-	s signer.Signer,
-	chainID *big.Int,
-	to common.Address,
-	data []byte,
-	nonce uint64,
-	gasLimit uint64,
-) (*types.Transaction, error) {
-	gasPrice, err := suggestGasPrice(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-
-	tx := types.NewTx(&types.LegacyTx{
-		Nonce:    nonce,
-		GasPrice: gasPrice,
-		Gas:      gasLimit,
-		To:       &to,
-		Value:    big.NewInt(0),
-		Data:     data,
-	})
-
-	return s.SignTx(ctx, tx, chainID)
 }
 
 // isDeployed returns true if a contract is already deployed at the given address.
