@@ -40,7 +40,7 @@ func newTestClient(t *testing.T) *Client {
 
 func TestNew_MissingChain(t *testing.T) {
 	_, err := New(Options{
-		RPC:     "http://localhost:8545",
+		Client:  nil,
 		Signer:  signer.NewMockSigner(0),
 		Version: version.V141,
 	})
@@ -63,7 +63,7 @@ func TestNew_MissingRPC(t *testing.T) {
 func TestNew_MissingSigner(t *testing.T) {
 	_, err := New(Options{
 		Chain:   chain.Ethereum,
-		RPC:     "http://localhost:8545",
+		Client:  nil,
 		Version: version.V141,
 	})
 	if err == nil {
@@ -74,7 +74,7 @@ func TestNew_MissingSigner(t *testing.T) {
 func TestNew_MissingVersion(t *testing.T) {
 	_, err := New(Options{
 		Chain:  chain.Ethereum,
-		RPC:    "http://localhost:8545",
+		Client: nil,
 		Signer: signer.NewMockSigner(0),
 	})
 	if err == nil {

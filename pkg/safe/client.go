@@ -94,14 +94,9 @@ func New(opts Options) (*Client, error) {
 		return nil, err
 	}
 
-	eth, err := opts.dialRPC()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Client{
 		chain:      opts.Chain,
-		deployer:   txmanager.New(eth, opts.Signer),
+		deployer:   txmanager.New(opts.Client, opts.Signer),
 		deployment: deployment,
 		opts:       &opts,
 	}, nil

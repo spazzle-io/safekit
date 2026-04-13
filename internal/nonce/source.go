@@ -11,8 +11,8 @@ import (
 // chain after a failed broadcast. This gives the node time to settle its mempool state before we query it again.
 const DefaultStaleNonceDelay = 500 * time.Millisecond
 
-// NonceSource is the minimal interface required to fetch the pending nonce for an account.
+// Source is the minimal interface required to fetch the pending nonce for an account.
 // *ethclient.Client satisfies this interface.
-type NonceSource interface {
+type Source interface {
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 }
