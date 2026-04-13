@@ -188,3 +188,63 @@ func TestIntegration_SubmitAndWait(t *testing.T) {
 			predicted.Hex(), result.SafeAddress.Hex())
 	}
 }
+
+func TestIntegration_ConcurrentDeploy(t *testing.T) {
+	client := integrationClientFromEnv(t)
+	ctx := context.Background()
+	owners := integrationOwners(t)
+
+	const concurrency = 3
+
+	type result struct {
+		predicted common.Address
+		deployed  common.Address
+		err       error
+	}
+
+	results := make([]result, concurrency)
+	var wg sync.WaitGroup
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			salt, err := RandomSalt()
+			if err != nil {
+				results[i] = result{err: fmt.Errorf("failed to generate random salt: %w", err)}
+				return
+			}
+
+			predicted, err := client.PredictAddress(owners, 2, salt)
+			if err != nil {
+				results[i] = result{err: fmt.Errorf("failed to predict address: %w", err)}
+				return
+			}
+
+			r, err := client.Deploy(ctx, owners, 2, salt)
+			if err != nil {
+				results[i] = result{err: fmt.Errorf("failed to deploy safe: %w", err)}
+				return
+			}
+
+			results[i] = result{predicted: predicted, deployed: r.SafeAddress}
+		}()
+	}
+
+	wg.Wait()
+
+	for i, r := range results {
+		if r.err != nil {
+			t.Errorf("concurrent exec %d: %v", i, r.err)
+			continue
+		}
+
+		if r.deployed != r.predicted {
+			t.Errorf("concurrent exec %d: predicted %s but deployed to %s",
+				i, r.predicted.Hex(), r.deployed.Hex())
+		} else {
+			t.Logf("concurrent exec %d: deployed %s", i, r.deployed.Hex())
+		}
+	}
+}
