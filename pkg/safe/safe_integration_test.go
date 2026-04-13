@@ -5,10 +5,12 @@ package safe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/spazzle-io/safekit/pkg/version"
 	"math/big"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
