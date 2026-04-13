@@ -2,6 +2,7 @@ package safe
 
 import (
 	"fmt"
+
 	"github.com/spazzle-io/safekit/internal/txmanager"
 
 	"github.com/spazzle-io/safekit/internal/versions"
