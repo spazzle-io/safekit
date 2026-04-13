@@ -19,8 +19,7 @@ import (
 	"github.com/spazzle-io/safekit/pkg/signer"
 )
 
-// defaultDeployTimeout is how long Deploy will wait for a transaction
-// to be mined before giving up.
+// defaultDeployTimeout is how long Deploy will wait for a transaction to be mined before giving up.
 const defaultDeployTimeout = 5 * time.Minute
 
 type TxManager struct {

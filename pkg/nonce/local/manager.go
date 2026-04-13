@@ -8,6 +8,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -18,12 +19,6 @@ import (
 
 // Options configures a local NonceManager.
 type Options struct {
-	// Client is the Ethereum JSON-RPC client used to fetch the pending nonce from the chain. Required.
-	Client internalnonce.Source
-
-	// Address is the signer address whose nonce is being managed. Required.
-	Address common.Address
-
 	// StaleNonceDelay is how long to wait before re-fetching the pending nonce from the chain after a failed broadcast.
 	// Defaults to nonce.DefaultStaleNonceDelay.
 	StaleNonceDelay time.Duration
@@ -45,14 +40,6 @@ type NonceManager struct {
 
 // NewNonceManager constructs a NonceManager from the given options.
 func NewNonceManager(opts Options) (*NonceManager, error) {
-	if opts.Client == nil {
-		return nil, fmt.Errorf("client is required")
-	}
-
-	if (opts.Address == common.Address{}) {
-		return nil, fmt.Errorf("address is required")
-	}
-
 	delay := opts.StaleNonceDelay
 	if delay <= 0 {
 		delay = internalnonce.DefaultStaleNonceDelay
@@ -62,11 +49,32 @@ func NewNonceManager(opts Options) (*NonceManager, error) {
 	ch <- struct{}{}
 
 	return &NonceManager{
-		source:          opts.Client,
-		address:         opts.Address,
 		staleNonceDelay: delay,
 		inflightCh:      ch,
 	}, nil
+}
+
+// Init injects chain-specific context required for nonce management.
+// It is called automatically by safe.New and should not be called directly.
+// Init must complete before Acquire is called. This is guaranteed when the nonce manager is passed to safe.New.
+func (m *NonceManager) Init(source internalnonce.Source, chainID *big.Int, address common.Address) error {
+	if source == nil {
+		return fmt.Errorf("source is required")
+	}
+	if chainID == nil {
+		return fmt.Errorf("chain ID is required")
+	}
+	if (address == common.Address{}) {
+		return fmt.Errorf("address is required")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.source = source
+	m.address = address
+
+	return nil
 }
 
 // Acquire blocks until a nonce slot is available, returning the next nonce and a release function
@@ -148,3 +156,4 @@ func (m *NonceManager) nextNonce(ctx context.Context) (uint64, error) {
 }
 
 var _ nonce.Manager = (*NonceManager)(nil)
+var _ internalnonce.Initable = (*NonceManager)(nil)

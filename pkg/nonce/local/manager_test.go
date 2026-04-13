@@ -3,10 +3,13 @@ package local
 import (
 	"context"
 	"errors"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -44,15 +47,14 @@ func (m *mockSource) callCount() int {
 func newManager(t *testing.T, src *mockSource, delay time.Duration) *NonceManager {
 	t.Helper()
 
-	ch := make(chan struct{}, 1)
-	ch <- struct{}{}
+	m, err := NewNonceManager(Options{StaleNonceDelay: delay})
+	require.NoError(t, err)
 
-	return &NonceManager{
-		source:          src,
-		address:         common.Address{},
-		staleNonceDelay: delay,
-		inflightCh:      ch,
+	if err := m.Init(src, big.NewInt(1), common.HexToAddress("0x123")); err != nil {
+		t.Fatal(err)
 	}
+
+	return m
 }
 
 func TestSequentialAcquireRelease(t *testing.T) {
@@ -215,29 +217,23 @@ func TestContextCancellationDuringRefetch(t *testing.T) {
 }
 
 func TestZeroDelayAppliesDefault(t *testing.T) {
-	opts := Options{
-		Client:  &mockSource{nonces: []uint64{0}},
-		Address: common.HexToAddress("0x1234"),
-	}
-	m, err := NewNonceManager(opts)
-	if err != nil {
-		t.Fatalf("NewNonceManager: %v", err)
-	}
+	m, err := NewNonceManager(Options{})
+	require.NoError(t, err)
+
 	if m.staleNonceDelay <= 0 {
 		t.Fatal("want positive stale nonce delay, got zero or negative")
 	}
 }
 
-func TestNewNonceManagerValidation(t *testing.T) {
-	addr := common.HexToAddress("0x1234")
+func TestInitValidation(t *testing.T) {
+	m, err := NewNonceManager(Options{})
+	require.NoError(t, err)
 
-	if _, err := NewNonceManager(Options{Address: addr}); err == nil {
-		t.Fatal("want error for missing Client")
-	}
+	err = m.Init(nil, big.NewInt(1), common.HexToAddress("0x123"))
+	require.Error(t, err)
 
-	if _, err := NewNonceManager(Options{Client: &mockSource{nonces: []uint64{0}}}); err == nil {
-		t.Fatal("want error for missing Address")
-	}
+	err = m.Init(&mockSource{nonces: []uint64{5}}, big.NewInt(1), common.Address{})
+	require.Error(t, err)
 }
 
 func TestNonceNotRefetchedOnSuccess(t *testing.T) {
