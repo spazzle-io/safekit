@@ -203,6 +203,14 @@ result, err := client.WaitForDeployment(ctx, owners, threshold, salt, txHash)
 deployed, err := client.IsDeployed(ctx, predictedSafeAddress)
 ```
 
+## Concurrency
+
+A `*Client` is safe for concurrent use. Multiple goroutines may call any client functions simultaneously.
+
+One constraint: a `Client` assumes exclusive use of its signer wallet on its chain. If another process or `Client`
+instance submits transactions from the same wallet on the same chain concurrently, nonce conflicts may occur.
+Use one `Client` per wallet per chain.
+
 ## Configuration
 
 ```go

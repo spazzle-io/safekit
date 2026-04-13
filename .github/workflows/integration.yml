@@ -12,49 +12,14 @@ env:
   GO_VERSION: '1.24'
 
 jobs:
-  integration:
-    name: ${{ matrix.version }} / ${{ matrix.chain }}
+  ethereum-sepolia:
+    name: ethereum-sepolia / ${{ matrix.version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
-        include:
-          - chain: ethereum-sepolia
-            chain_id: "11155111"
-            version: "1.3.0"
-            rpc_secret: ETH_SEPOLIA_RPC_URL
-            key_secret: ETH_SEPOLIA_ADMIN_KEY
-
-          - chain: ethereum-sepolia
-            chain_id: "11155111"
-            version: "1.4.1"
-            rpc_secret: ETH_SEPOLIA_RPC_URL
-            key_secret: ETH_SEPOLIA_ADMIN_KEY
-
-          - chain: ethereum-sepolia
-            chain_id: "11155111"
-            version: "1.5.0"
-            rpc_secret: ETH_SEPOLIA_RPC_URL
-            key_secret: ETH_SEPOLIA_ADMIN_KEY
-
-          - chain: base-sepolia
-            chain_id: "84532"
-            version: "1.3.0"
-            rpc_secret: BASE_SEPOLIA_RPC_URL
-            key_secret: BASE_SEPOLIA_ADMIN_KEY
-
-          - chain: base-sepolia
-            chain_id: "84532"
-            version: "1.4.1"
-            rpc_secret: BASE_SEPOLIA_RPC_URL
-            key_secret: BASE_SEPOLIA_ADMIN_KEY
-
-          - chain: base-sepolia
-            chain_id: "84532"
-            version: "1.5.0"
-            rpc_secret: BASE_SEPOLIA_RPC_URL
-            key_secret: BASE_SEPOLIA_ADMIN_KEY
-
+        version: ["1.3.0", "1.4.1", "1.5.0"]
     steps:
       - uses: actions/checkout@v4
 
@@ -64,8 +29,31 @@ jobs:
 
       - name: run-integration-tests
         env:
-          SAFEKIT_TEST_RPC_URL:   ${{ secrets[matrix.rpc_secret] }}
-          SAFEKIT_TEST_ADMIN_KEY: ${{ secrets[matrix.key_secret] }}
-          SAFEKIT_TEST_CHAIN_ID:  ${{ matrix.chain_id }}
+          SAFEKIT_TEST_RPC_URL:   ${{ secrets.ETH_SEPOLIA_RPC_URL }}
+          SAFEKIT_TEST_ADMIN_KEY: ${{ secrets.ETH_SEPOLIA_ADMIN_KEY }}
+          SAFEKIT_TEST_CHAIN_ID:  "11155111"
+          SAFEKIT_TEST_VERSION:   ${{ matrix.version }}
+        run: go test -tags integration -timeout 10m -v ./pkg/safe/...
+
+  base-sepolia:
+    name: base-sepolia / ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        version: ["1.3.0", "1.4.1", "1.5.0"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: run-integration-tests
+        env:
+          SAFEKIT_TEST_RPC_URL:   ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+          SAFEKIT_TEST_ADMIN_KEY: ${{ secrets.BASE_SEPOLIA_ADMIN_KEY }}
+          SAFEKIT_TEST_CHAIN_ID:  "84532"
           SAFEKIT_TEST_VERSION:   ${{ matrix.version }}
         run: go test -tags integration -timeout 10m -v ./pkg/safe/...

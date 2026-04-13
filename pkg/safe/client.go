@@ -48,6 +48,13 @@ var _ Deployer = (*Client)(nil)
 // Client provides Safe address prediction and deployment for a specific
 // chain and Safe version. Create one with New() and close it with Close()
 // when done.
+//
+// A Client is safe for concurrent use. Multiple goroutines may call any Client method simultaneously.
+//
+// Each Client manages the nonce sequence for its signer wallet on its chain. If any other process,
+// script, or Client instance submits transactions from the same wallet on the same chain while an existing Client
+// is running, nonce conflicts may occur. For safe concurrent operation, ensure only one Client per wallet
+// per chain is active at any time.
 type Client struct {
 	chain      *chain.Chain
 	deployer   *deployer.Deployer
