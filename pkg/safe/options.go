@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spazzle-io/safekit/pkg/nonce"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/spazzle-io/safekit/internal/versions"
@@ -43,7 +45,7 @@ type Options struct {
 	// NonceManager controls how nonces are assigned across concurrent deployments.
 	// If nil, a local in-memory manager is created automatically with sensible defaults.
 	// Optional.
-	NonceManager NonceManager
+	NonceManager nonce.Manager
 
 	// DeployTimeout is how long Deploy will wait for a transaction to be mined.
 	// Defaults to 5 minutes.
