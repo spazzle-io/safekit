@@ -1,5 +1,6 @@
-// Package deployer handles the on-chain deployment of Safe proxy contracts.
-package deployer
+// Package txmanager handles the transaction lifecycle for Safe proxy deployments,
+// including gas estimation, nonce coordination, signing, broadcasting, and receipt confirmation.
+package txmanager
 
 import (
 	"context"
@@ -22,7 +23,7 @@ import (
 // to be mined before giving up.
 const defaultDeployTimeout = 5 * time.Minute
 
-type Deployer struct {
+type TxManager struct {
 	Client   *ethclient.Client
 	Signer   signer.Signer
 	nonceMu  sync.Mutex
@@ -69,8 +70,8 @@ func (o *Options) timeout() time.Duration {
 	return o.Timeout
 }
 
-func NewDeployer(client *ethclient.Client, signer signer.Signer) *Deployer {
-	return &Deployer{
+func New(client *ethclient.Client, signer signer.Signer) *TxManager {
+	return &TxManager{
 		Client: client,
 		Signer: signer,
 	}
@@ -79,7 +80,7 @@ func NewDeployer(client *ethclient.Client, signer signer.Signer) *Deployer {
 // Submit builds and submits the deployment transaction, returning the
 // transaction hash immediately without waiting for it to be mined.
 // Use Wait to retrieve the result once mined.
-func (d *Deployer) Submit(
+func (d *TxManager) Submit(
 	ctx context.Context,
 	deployment versions.Deployment,
 	chainID *big.Int,
@@ -154,7 +155,7 @@ func (d *Deployer) Submit(
 
 // Wait waits for a previously submitted deployment transaction to be mined,
 // verifies the deployed address matches the prediction, and returns the result.
-func (d *Deployer) Wait(
+func (d *TxManager) Wait(
 	ctx context.Context,
 	deployment versions.Deployment,
 	chainID *big.Int,
@@ -200,7 +201,7 @@ func (d *Deployer) Wait(
 
 // Deploy submits a deployment transaction and waits for it to be mined.
 // Use Submit and Wait if you need to deploy in a non-blocking fashion.
-func (d *Deployer) Deploy(
+func (d *TxManager) Deploy(
 	ctx context.Context,
 	deployment versions.Deployment,
 	chainID *big.Int,
@@ -232,7 +233,7 @@ func (d *Deployer) Deploy(
 	return d.Wait(timeoutCtx, deployment, chainID, isL2, input, txHash)
 }
 
-func (d *Deployer) nextNonce(ctx context.Context) (uint64, error) {
+func (d *TxManager) nextNonce(ctx context.Context) (uint64, error) {
 	if !d.hasNonce {
 		n, err := d.Client.PendingNonceAt(ctx, d.Signer.Address())
 		if err != nil {

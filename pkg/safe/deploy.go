@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/spazzle-io/safekit/internal/deployer"
 	"github.com/spazzle-io/safekit/internal/predict"
+	"github.com/spazzle-io/safekit/internal/txmanager"
 )
 
 // DeployResult is returned after a successful Safe deployment.
@@ -60,7 +60,7 @@ func (c *Client) Deploy(
 			Threshold: threshold,
 			Salt:      salt,
 		},
-		&deployer.Options{
+		&txmanager.Options{
 			GasMultiplier: c.opts.gasMultiplier(),
 			Timeout:       c.opts.deployTimeout(),
 		},
@@ -107,7 +107,7 @@ func (c *Client) SubmitDeployment(
 			Threshold: threshold,
 			Salt:      salt,
 		},
-		&deployer.Options{
+		&txmanager.Options{
 			GasMultiplier: c.opts.gasMultiplier(),
 		},
 	)

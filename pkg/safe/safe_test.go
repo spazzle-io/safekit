@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spazzle-io/safekit/internal/deployer"
+	"github.com/spazzle-io/safekit/internal/txmanager"
 
 	"github.com/spazzle-io/safekit/pkg/version"
 
@@ -32,7 +32,7 @@ func newTestClient(t *testing.T) *Client {
 
 	return &Client{
 		chain:      chain.Ethereum,
-		deployer:   deployer.NewDeployer(nil, signer.NewMockSigner(0)),
+		deployer:   txmanager.New(nil, signer.NewMockSigner(0)),
 		deployment: deployment,
 		opts:       &Options{},
 	}

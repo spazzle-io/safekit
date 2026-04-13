@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spazzle-io/safekit/internal/deployer"
+	"github.com/spazzle-io/safekit/internal/txmanager"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spazzle-io/safekit/internal/versions"
@@ -57,7 +57,7 @@ var _ Deployer = (*Client)(nil)
 // per chain is active at any time.
 type Client struct {
 	chain      *chain.Chain
-	deployer   *deployer.Deployer
+	deployer   *txmanager.TxManager
 	deployment versions.Deployment
 	opts       *Options
 }
@@ -101,7 +101,7 @@ func New(opts Options) (*Client, error) {
 
 	return &Client{
 		chain:      opts.Chain,
-		deployer:   deployer.NewDeployer(eth, opts.Signer),
+		deployer:   txmanager.New(eth, opts.Signer),
 		deployment: deployment,
 		opts:       &opts,
 	}, nil
