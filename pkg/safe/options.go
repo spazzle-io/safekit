@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spazzle-io/safekit/pkg/nonce"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/spazzle-io/safekit/internal/versions"
@@ -16,7 +18,7 @@ import (
 )
 
 const (
-	defaultDeployTimeout = 5 * time.Minute
+	defaultDeployTimeout = 2 * time.Minute
 	defaultGasMultiplier = 1.2
 )
 
@@ -27,9 +29,8 @@ type Options struct {
 	// Required.
 	Chain *chain.Chain
 
-	// RPC is the URL of an Ethereum-compatible JSON-RPC endpoint.
-	// Required.
-	RPC string
+	// Client is the Ethereum JSON-RPC client used to interact with the chain.
+	Client *ethclient.Client
 
 	// Signer is the admin wallet that pays for gas.
 	// It is never added as an owner of deployed Safes.
@@ -41,8 +42,13 @@ type Options struct {
 	// Required.
 	Version versions.Version
 
+	// NonceManager controls how nonces are assigned across concurrent deployments.
+	// If nil, a local in-memory manager is created automatically with sensible defaults.
+	// Optional.
+	NonceManager nonce.Manager
+
 	// DeployTimeout is how long Deploy will wait for a transaction to be mined.
-	// Defaults to 5 minutes.
+	// Defaults to 2 minutes.
 	DeployTimeout time.Duration
 
 	// GasMultiplier is applied to the estimated gas to give headroom.
@@ -55,8 +61,8 @@ func (o *Options) validate() error {
 		return fmt.Errorf("chain is required")
 	}
 
-	if o.RPC == "" {
-		return fmt.Errorf("RPC is required")
+	if o.Client == nil {
+		return fmt.Errorf("client is required")
 	}
 
 	if o.Signer == nil {
@@ -82,14 +88,4 @@ func (o *Options) gasMultiplier() float64 {
 		return defaultGasMultiplier
 	}
 	return o.GasMultiplier
-}
-
-// dialRPC creates an ethclient connection to the configured RPC endpoint.
-func (o *Options) dialRPC() (*ethclient.Client, error) {
-	client, err := ethclient.Dial(o.RPC)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RPC %q: %w", o.RPC, err)
-	}
-
-	return client, nil
 }

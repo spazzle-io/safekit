@@ -19,8 +19,8 @@ var (
 	testSalt      = []byte("test-salt")
 )
 
-func TestMockClient_ImplementsDeployer(t *testing.T) {
-	var _ safe.Deployer = NewClient()
+func TestMockClient_ImplementsSafeClient(t *testing.T) {
+	var _ safe.Client = NewClient()
 }
 
 func TestMockClient_PredictAddress_Deterministic(t *testing.T) {
@@ -115,9 +115,14 @@ func TestMockClient_Reset(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	addrs := c.DeployedAddresses()
+	if len(addrs) != 1 {
+		t.Errorf("expected 1 address; got %d", len(addrs))
+	}
+
 	c.Reset()
 
-	addrs := c.DeployedAddresses()
+	addrs = c.DeployedAddresses()
 	if len(addrs) != 0 {
 		t.Errorf("expected no deployed addresses after Reset, got %d", len(addrs))
 	}
@@ -126,6 +131,11 @@ func TestMockClient_Reset(t *testing.T) {
 func TestMockClient_SubmitAndWait(t *testing.T) {
 	c := NewClient()
 	ctx := context.Background()
+
+	predicted, err := c.PredictAddress(testOwners, testThreshold, testSalt)
+	if err != nil {
+		t.Fatalf("unexpected error predicting: %v", err)
+	}
 
 	txHash, err := c.SubmitDeployment(ctx, testOwners, testThreshold, testSalt)
 	if err != nil {
@@ -139,6 +149,10 @@ func TestMockClient_SubmitAndWait(t *testing.T) {
 
 	if result.TxHash != txHash {
 		t.Errorf("tx hash mismatch: got %s, want %s", result.TxHash.Hex(), txHash.Hex())
+	}
+
+	if result.SafeAddress != predicted {
+		t.Errorf("predicted %s but got %s", predicted.Hex(), result.SafeAddress.Hex())
 	}
 }
 
@@ -186,5 +200,155 @@ func TestMockClient_DeployedAddresses(t *testing.T) {
 	}
 	if !found[addrTwo] {
 		t.Errorf("expected %s in DeployedAddresses", addrTwo.Hex())
+	}
+}
+
+func TestForceError_Deploy(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceError(safe.ErrTransactionReverted)
+
+	_, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrTransactionReverted) {
+		t.Fatalf("want ErrTransactionReverted, got %v", err)
+	}
+}
+
+func TestForceError_SubmitDeployment(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceError(safe.ErrTransactionReverted)
+
+	_, err := c.SubmitDeployment(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrTransactionReverted) {
+		t.Fatalf("want ErrTransactionReverted, got %v", err)
+	}
+}
+
+func TestForceError_WaitForDeployment(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	txHash, err := c.SubmitDeployment(ctx, testOwners, testThreshold, testSalt)
+	if err != nil {
+		t.Fatalf("unexpected error submitting: %v", err)
+	}
+
+	c.ForceError(safe.ErrDeployTimeout)
+
+	_, err = c.WaitForDeployment(ctx, testOwners, testThreshold, testSalt, txHash)
+	if !errors.Is(err, safe.ErrDeployTimeout) {
+		t.Fatalf("want ErrDeployTimeout, got %v", err)
+	}
+}
+
+func TestForceError_ConsumedAfterOneUse(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceError(safe.ErrTransactionReverted)
+
+	_, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrTransactionReverted) {
+		t.Fatalf("want ErrTransactionReverted on first call, got %v", err)
+	}
+
+	result, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if err != nil {
+		t.Fatalf("want success on second call, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("want non-nil result on second call")
+	}
+}
+
+func TestForceErrors_Sequential(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceErrors(safe.ErrDeployTimeout, nil, safe.ErrTransactionReverted, nil)
+
+	_, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrDeployTimeout) {
+		t.Fatalf("first call: want ErrDeployTimeout, got %v", err)
+	}
+
+	result, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if err != nil {
+		t.Fatalf("second call: want success, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("second call: want non-nil result")
+	}
+
+	_, err = c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrTransactionReverted) {
+		t.Fatalf("third call: want ErrTransactionReverted, got %v", err)
+	}
+
+	result, err = c.Deploy(ctx, testOwners, testThreshold, []byte("different salt"))
+	if err != nil {
+		t.Fatalf("fourth call: want success, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("fourth call: want non-nil result")
+	}
+}
+
+func TestForceErrors_QueueAppend(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceErrors(safe.ErrDeployTimeout)
+	c.ForceErrors(safe.ErrTransactionReverted)
+
+	_, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrDeployTimeout) {
+		t.Fatalf("first call: want ErrDeployTimeout, got %v", err)
+	}
+
+	_, err = c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrTransactionReverted) {
+		t.Fatalf("second call: want ErrTransactionReverted, got %v", err)
+	}
+}
+
+func TestForceError_ResetClearsForcedErrors(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceErrors(safe.ErrTransactionReverted, safe.ErrDeployTimeout)
+	c.Reset()
+
+	result, err := c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if err != nil {
+		t.Fatalf("want success after Reset, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("want non-nil result after Reset")
+	}
+}
+
+func TestForceError_DoesNotAffectPredictOrIsDeployed(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	c.ForceError(safe.ErrTransactionReverted)
+
+	_, err := c.PredictAddress(testOwners, testThreshold, testSalt)
+	if err != nil {
+		t.Fatalf("PredictAddress should not be affected by ForceError, got %v", err)
+	}
+
+	_, err = c.IsDeployed(ctx, common.Address{})
+	if err != nil {
+		t.Fatalf("IsDeployed should not be affected by ForceError, got %v", err)
+	}
+
+	_, err = c.Deploy(ctx, testOwners, testThreshold, testSalt)
+	if !errors.Is(err, safe.ErrTransactionReverted) {
+		t.Fatalf("want ErrTransactionReverted still pending, got %v", err)
 	}
 }

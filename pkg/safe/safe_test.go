@@ -4,7 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spazzle-io/safekit/internal/deployer"
+	"github.com/spazzle-io/safekit/pkg/nonce/local"
+
+	"github.com/spazzle-io/safekit/internal/txmanager"
 
 	"github.com/spazzle-io/safekit/pkg/version"
 
@@ -22,7 +24,7 @@ var testOwners = []common.Address{
 	common.HexToAddress("0x3333333333333333333333333333333333333333"),
 }
 
-func newTestClient(t *testing.T) *Client {
+func newTestClient(t *testing.T) *client {
 	t.Helper()
 
 	deployment, err := versions.Get(version.V141)
@@ -30,9 +32,11 @@ func newTestClient(t *testing.T) *Client {
 		t.Fatalf("failed to get deployment: %v", err)
 	}
 
-	return &Client{
+	nm := local.NewNonceManager(local.Options{})
+
+	return &client{
 		chain:      chain.Ethereum,
-		deployer:   deployer.NewDeployer(nil, signer.NewMockSigner(0)),
+		txManager:  txmanager.New(nil, signer.NewMockSigner(0), nm),
 		deployment: deployment,
 		opts:       &Options{},
 	}
@@ -40,7 +44,7 @@ func newTestClient(t *testing.T) *Client {
 
 func TestNew_MissingChain(t *testing.T) {
 	_, err := New(Options{
-		RPC:     "http://localhost:8545",
+		Client:  nil,
 		Signer:  signer.NewMockSigner(0),
 		Version: version.V141,
 	})
@@ -63,18 +67,18 @@ func TestNew_MissingRPC(t *testing.T) {
 func TestNew_MissingSigner(t *testing.T) {
 	_, err := New(Options{
 		Chain:   chain.Ethereum,
-		RPC:     "http://localhost:8545",
+		Client:  nil,
 		Version: version.V141,
 	})
 	if err == nil {
-		t.Fatal("expected error for missing Signer, got nil")
+		t.Fatal("expected error for missing signer, got nil")
 	}
 }
 
 func TestNew_MissingVersion(t *testing.T) {
 	_, err := New(Options{
 		Chain:  chain.Ethereum,
-		RPC:    "http://localhost:8545",
+		Client: nil,
 		Signer: signer.NewMockSigner(0),
 	})
 	if err == nil {
@@ -290,5 +294,5 @@ func TestClient_Close_Idempotent(t *testing.T) {
 }
 
 func TestClient_ImplementsDeployer(t *testing.T) {
-	var _ Deployer = (*Client)(nil)
+	var _ Client = (*client)(nil)
 }

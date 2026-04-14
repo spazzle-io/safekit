@@ -3,13 +3,14 @@ package safe
 import (
 	"fmt"
 
-	"github.com/spazzle-io/safekit/internal/deployer"
+	"github.com/spazzle-io/safekit/internal/txmanager"
+
 	"github.com/spazzle-io/safekit/internal/versions"
 )
 
 // DeploymentMismatchError is returned when the deployed Safe address does not match the predicted address.
 // This indicates a bug in safekit. Please open an issue at github.com/spazzle-io/safekit with the details.
-type DeploymentMismatchError = deployer.DeploymentMismatchError
+type DeploymentMismatchError = txmanager.DeploymentMismatchError
 
 var (
 	// ErrUnknownVersion is returned when the version string passed to New() is not a version safekit knows about.
@@ -23,13 +24,13 @@ var (
 	ErrVersionNotOnChain = versions.ErrVersionNotOnChain
 
 	// ErrAddressAlreadyDeployed is returned when the predicted Safe address already has a contract deployed at it.
-	ErrAddressAlreadyDeployed = deployer.ErrAddressAlreadyDeployed
+	ErrAddressAlreadyDeployed = txmanager.ErrAddressAlreadyDeployed
 
 	// ErrDeployTimeout is returned when the deployment transaction is not mined within the configured timeout.
-	ErrDeployTimeout = deployer.ErrDeployTimeout
+	ErrDeployTimeout = txmanager.ErrDeployTimeout
 
 	// ErrTransactionReverted is returned when the deployment transaction was mined but reverted on-chain.
-	ErrTransactionReverted = deployer.ErrTransactionReverted
+	ErrTransactionReverted = txmanager.ErrTransactionReverted
 
 	// ErrInvalidThreshold is returned when the threshold exceeds the number of owners or is zero.
 	ErrInvalidThreshold = fmt.Errorf("invalid threshold")
