@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/spazzle-io/safekit/pkg/nonce/local"
+
 	"github.com/spazzle-io/safekit/internal/txmanager"
 
 	"github.com/spazzle-io/safekit/pkg/version"
@@ -22,7 +24,7 @@ var testOwners = []common.Address{
 	common.HexToAddress("0x3333333333333333333333333333333333333333"),
 }
 
-func newTestClient(t *testing.T) *Client {
+func newTestClient(t *testing.T) *client {
 	t.Helper()
 
 	deployment, err := versions.Get(version.V141)
@@ -30,9 +32,11 @@ func newTestClient(t *testing.T) *Client {
 		t.Fatalf("failed to get deployment: %v", err)
 	}
 
-	return &Client{
+	nm := local.NewNonceManager(local.Options{})
+
+	return &client{
 		chain:      chain.Ethereum,
-		deployer:   txmanager.New(nil, signer.NewMockSigner(0)),
+		txManager:  txmanager.New(nil, signer.NewMockSigner(0), nm),
 		deployment: deployment,
 		opts:       &Options{},
 	}
@@ -67,7 +71,7 @@ func TestNew_MissingSigner(t *testing.T) {
 		Version: version.V141,
 	})
 	if err == nil {
-		t.Fatal("expected error for missing Signer, got nil")
+		t.Fatal("expected error for missing signer, got nil")
 	}
 }
 
@@ -290,5 +294,5 @@ func TestClient_Close_Idempotent(t *testing.T) {
 }
 
 func TestClient_ImplementsDeployer(t *testing.T) {
-	var _ Deployer = (*Client)(nil)
+	var _ Client = (*client)(nil)
 }

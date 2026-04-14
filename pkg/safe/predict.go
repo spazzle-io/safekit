@@ -1,18 +1,15 @@
 package safe
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/spazzle-io/safekit/internal/predict"
 )
 
-// PredictAddress computes the deterministic address a Safe will be deployed
-// to without making a network call. The same inputs on the same chain always
-// produce the same address.
-//
-// Use this to get an address you can fund or reference before the Safe
-// exists on-chain. Call IsDeployed to check whether it has been deployed yet.
-func (c *Client) PredictAddress(
+func (c *client) PredictAddress(
 	owners []common.Address,
 	threshold uint8,
 	salt []byte,
@@ -36,4 +33,13 @@ func (c *Client) PredictAddress(
 	}
 
 	return addr, nil
+}
+
+func (c *client) IsDeployed(ctx context.Context, addr common.Address) (bool, error) {
+	code, err := c.txManager.CodeAt(ctx, addr)
+	if err != nil {
+		return false, fmt.Errorf("failed to check deployment status: %w", err)
+	}
+
+	return len(code) > 0, nil
 }

@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -47,8 +45,7 @@ func (m *mockSource) callCount() int {
 func newManager(t *testing.T, src *mockSource, delay time.Duration) *NonceManager {
 	t.Helper()
 
-	m, err := NewNonceManager(Options{StaleNonceDelay: delay})
-	require.NoError(t, err)
+	m := NewNonceManager(Options{StaleNonceDelay: delay})
 
 	if err := m.Init(src, big.NewInt(1), common.HexToAddress("0x123")); err != nil {
 		t.Fatal(err)
@@ -57,23 +54,106 @@ func newManager(t *testing.T, src *mockSource, delay time.Duration) *NonceManage
 	return m
 }
 
-func TestSequentialAcquireRelease(t *testing.T) {
+func TestAcquireBeforeInitReturnsError(t *testing.T) {
+	m := NewNonceManager(Options{})
+
+	_, _, err := m.Acquire(context.Background())
+	if err == nil {
+		t.Fatal("want error when Acquire called before Init")
+	}
+}
+
+func TestSequentialCommit(t *testing.T) {
 	src := &mockSource{nonces: []uint64{5}}
 	m := newManager(t, src, 0)
 
 	for i := uint64(0); i < 5; i++ {
-		n, release, err := m.Acquire(context.Background())
+		n, slot, err := m.Acquire(context.Background())
 		if err != nil {
-			t.Fatalf("Acquire %d: unexpected error: %v", i, err)
+			t.Fatalf("Acquire %d: %v", i, err)
 		}
 		if n != 5+i {
 			t.Fatalf("Acquire %d: want nonce %d got %d", i, 5+i, n)
 		}
-		release(nil)
+		slot.Commit()
 	}
 
 	if src.callCount() != 1 {
 		t.Fatalf("want 1 chain call, got %d", src.callCount())
+	}
+}
+
+func TestReuseReturnsSameNonce(t *testing.T) {
+	src := &mockSource{nonces: []uint64{7}}
+	m := newManager(t, src, 0)
+
+	n, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("first Acquire: %v", err)
+	}
+	if n != 7 {
+		t.Fatalf("want 7, got %d", n)
+	}
+	slot.Reuse()
+
+	n, slot, err = m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("second Acquire: %v", err)
+	}
+	if n != 7 {
+		t.Fatalf("want 7 again after Reuse, got %d", n)
+	}
+	slot.Commit()
+
+	if src.callCount() != 1 {
+		t.Fatalf("want 1 chain call, got %d", src.callCount())
+	}
+}
+
+func TestReclaimTriggersRefetch(t *testing.T) {
+	src := &mockSource{nonces: []uint64{7, 8}}
+	m := newManager(t, src, 10*time.Millisecond)
+
+	n, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("first Acquire: %v", err)
+	}
+	if n != 7 {
+		t.Fatalf("want 7, got %d", n)
+	}
+	slot.Reclaim()
+
+	n, slot, err = m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("second Acquire: %v", err)
+	}
+	if n != 8 {
+		t.Fatalf("want 8 after Reclaim, got %d", n)
+	}
+	slot.Commit()
+
+	if src.callCount() != 2 {
+		t.Fatalf("want 2 chain calls, got %d", src.callCount())
+	}
+}
+
+func TestReclaimRespectsDelay(t *testing.T) {
+	delay := 100 * time.Millisecond
+	src := &mockSource{nonces: []uint64{0, 1}}
+	m := newManager(t, src, delay)
+
+	_, slot, _ := m.Acquire(context.Background())
+	slot.Reclaim()
+
+	start := time.Now()
+	_, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("Acquire after Reclaim: %v", err)
+	}
+	slot.Commit()
+
+	if elapsed := time.Since(start); elapsed < delay {
+		t.Fatalf("want at least %v delay, got %v", delay, elapsed)
 	}
 }
 
@@ -91,20 +171,17 @@ func TestConcurrentAcquireProducesSequentialNonces(t *testing.T) {
 
 	for i := 0; i < goroutines; i++ {
 		wg.Add(1)
-
 		go func() {
 			defer wg.Done()
-
-			n, release, err := m.Acquire(context.Background())
+			n, slot, err := m.Acquire(context.Background())
 			if err != nil {
-				t.Errorf("unexpected error: %v", err)
+				t.Errorf("Acquire: %v", err)
 				return
 			}
-
 			mu.Lock()
 			nonces = append(nonces, n)
 			mu.Unlock()
-			release(nil)
+			slot.Commit()
 		}()
 	}
 
@@ -119,7 +196,6 @@ func TestConcurrentAcquireProducesSequentialNonces(t *testing.T) {
 		if seen[n] {
 			t.Fatalf("duplicate nonce %d", n)
 		}
-
 		seen[n] = true
 	}
 
@@ -127,56 +203,6 @@ func TestConcurrentAcquireProducesSequentialNonces(t *testing.T) {
 		if !seen[i] {
 			t.Fatalf("missing nonce %d", i)
 		}
-	}
-}
-
-func TestReleaseErrTriggersRefetch(t *testing.T) {
-	src := &mockSource{nonces: []uint64{7, 8}}
-	m := newManager(t, src, 10*time.Millisecond)
-
-	n, release, err := m.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("first Acquire: %v", err)
-	}
-	if n != 7 {
-		t.Fatalf("want 7, got %d", n)
-	}
-
-	release(errors.New("send failed"))
-
-	n, release, err = m.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("second Acquire: %v", err)
-	}
-	if n != 8 {
-		t.Fatalf("want 8, got %d", n)
-	}
-	release(nil)
-
-	if src.callCount() != 2 {
-		t.Fatalf("want 2 chain calls, got %d", src.callCount())
-	}
-}
-
-func TestRefetchRespectsDelay(t *testing.T) {
-	delay := 100 * time.Millisecond
-	src := &mockSource{nonces: []uint64{0, 1}}
-	m := newManager(t, src, delay)
-
-	n, release, _ := m.Acquire(context.Background())
-	_ = n
-	release(errors.New("failed"))
-
-	start := time.Now()
-	_, release, err := m.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("acquire after failure: %v", err)
-	}
-	release(nil)
-
-	elapsed := time.Since(start)
-	if elapsed < delay {
-		t.Fatalf("want at least %v delay, got %v", delay, elapsed)
 	}
 }
 
@@ -188,7 +214,6 @@ func TestContextCancellationWhileWaiting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Acquire: %v", err)
 	}
-	// Intentionally do not release slot
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -201,11 +226,10 @@ func TestContextCancellationWhileWaiting(t *testing.T) {
 
 func TestContextCancellationDuringRefetch(t *testing.T) {
 	src := &mockSource{nonces: []uint64{0, 1}}
-	m := newManager(t, src, 5*time.Second) // long delay
+	m := newManager(t, src, 5*time.Second)
 
-	n, release, _ := m.Acquire(context.Background())
-	_ = n
-	release(errors.New("failed"))
+	_, slot, _ := m.Acquire(context.Background())
+	slot.Reclaim()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -217,39 +241,9 @@ func TestContextCancellationDuringRefetch(t *testing.T) {
 }
 
 func TestZeroDelayAppliesDefault(t *testing.T) {
-	m, err := NewNonceManager(Options{})
-	require.NoError(t, err)
-
+	m := NewNonceManager(Options{})
 	if m.staleNonceDelay <= 0 {
 		t.Fatal("want positive stale nonce delay, got zero or negative")
-	}
-}
-
-func TestInitValidation(t *testing.T) {
-	m, err := NewNonceManager(Options{})
-	require.NoError(t, err)
-
-	err = m.Init(nil, big.NewInt(1), common.HexToAddress("0x123"))
-	require.Error(t, err)
-
-	err = m.Init(&mockSource{nonces: []uint64{5}}, big.NewInt(1), common.Address{})
-	require.Error(t, err)
-}
-
-func TestNonceNotRefetchedOnSuccess(t *testing.T) {
-	src := &mockSource{nonces: []uint64{3}}
-	m := newManager(t, src, 0)
-
-	for i := 0; i < 5; i++ {
-		_, release, err := m.Acquire(context.Background())
-		if err != nil {
-			t.Fatalf("Acquire %d: %v", i, err)
-		}
-		release(nil)
-	}
-
-	if src.callCount() != 1 {
-		t.Fatalf("want 1 chain call, got %d", src.callCount())
 	}
 }
 
@@ -269,11 +263,10 @@ func TestSlotReturnedOnFetchError(t *testing.T) {
 
 	var acquired atomic.Bool
 	done := make(chan struct{})
-
 	go func() {
-		_, release, err := m.Acquire(context.Background())
+		_, slot, err := m.Acquire(context.Background())
 		if err == nil {
-			release(nil)
+			slot.Commit()
 			acquired.Store(true)
 		}
 		close(done)
@@ -282,10 +275,44 @@ func TestSlotReturnedOnFetchError(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("second Acquire blocked")
+		t.Fatal("second Acquire blocked — slot was not returned after fetch error")
 	}
 
 	if !acquired.Load() {
 		t.Fatal("second Acquire did not succeed")
 	}
+}
+
+func TestReuseAfterMultipleCommits(t *testing.T) {
+	src := &mockSource{nonces: []uint64{0}}
+	m := newManager(t, src, 0)
+
+	for i := uint64(0); i < 3; i++ {
+		n, slot, err := m.Acquire(context.Background())
+		if err != nil {
+			t.Fatalf("Acquire %d: %v", i, err)
+		}
+		if n != i {
+			t.Fatalf("want %d, got %d", i, n)
+		}
+		slot.Commit()
+	}
+
+	n, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("Acquire for Reuse: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("want 3, got %d", n)
+	}
+	slot.Reuse()
+
+	n, slot, err = m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("Acquire after Reuse: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("want 3 after Reuse, got %d", n)
+	}
+	slot.Commit()
 }

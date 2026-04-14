@@ -20,7 +20,7 @@ var (
 )
 
 func TestMockClient_ImplementsDeployer(t *testing.T) {
-	var _ safe.Deployer = NewClient()
+	var _ safe.Client = NewClient()
 }
 
 func TestMockClient_PredictAddress_Deterministic(t *testing.T) {

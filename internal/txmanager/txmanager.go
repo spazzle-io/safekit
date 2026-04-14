@@ -7,8 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sync"
 	"time"
+
+	pkgnonce "github.com/spazzle-io/safekit/pkg/nonce"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -20,14 +21,12 @@ import (
 )
 
 // defaultDeployTimeout is how long Deploy will wait for a transaction to be mined before giving up.
-const defaultDeployTimeout = 5 * time.Minute
+const defaultDeployTimeout = 2 * time.Minute
 
 type TxManager struct {
-	Client   *ethclient.Client
-	Signer   signer.Signer
-	nonceMu  sync.Mutex
-	nonce    uint64
-	hasNonce bool
+	client       *ethclient.Client
+	signer       signer.Signer
+	nonceManager pkgnonce.Manager
 }
 
 // Result is returned after a successful Safe deployment.
@@ -69,17 +68,17 @@ func (o *Options) timeout() time.Duration {
 	return o.Timeout
 }
 
-func New(client *ethclient.Client, signer signer.Signer) *TxManager {
+func New(client *ethclient.Client, signer signer.Signer, nm pkgnonce.Manager) *TxManager {
 	return &TxManager{
-		Client: client,
-		Signer: signer,
+		client:       client,
+		signer:       signer,
+		nonceManager: nm,
 	}
 }
 
-// Submit builds and submits the deployment transaction, returning the
-// transaction hash immediately without waiting for it to be mined.
-// Use Wait to retrieve the result once mined.
-func (d *TxManager) Submit(
+// Submit builds and submits the deployment transaction, returning the transaction hash immediately without
+// waiting for it to be mined. Use Wait to retrieve the result once mined.
+func (t *TxManager) Submit(
 	ctx context.Context,
 	deployment versions.Deployment,
 	chainID *big.Int,
@@ -102,59 +101,64 @@ func (d *TxManager) Submit(
 		return common.Hash{}, fmt.Errorf("address prediction failed: %w", err)
 	}
 
-	gasLimit, err := estimateGas(ctx, d.Client, d.Signer.Address(), factory.Address, calldata, opts.gasMultiplier())
+	n, slot, err := t.nonceManager.Acquire(ctx)
 	if err != nil {
-		if alreadyDeployed, checkErr := isDeployed(ctx, d.Client, predictedAddr); checkErr == nil && alreadyDeployed {
-			return common.Hash{}, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
-		}
+		return common.Hash{}, fmt.Errorf("failed to acquire nonce slot: %w", err)
+	}
+
+	if deployed, checkErr := isDeployed(ctx, t.client, predictedAddr); checkErr == nil && deployed {
+		slot.Reuse()
+		return common.Hash{}, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
+	}
+
+	gasLimit, err := estimateGas(ctx, t.client, t.signer.Address(), factory.Address, calldata, opts.gasMultiplier())
+	if err != nil {
+		slot.Reuse()
+		return common.Hash{}, fmt.Errorf("gas estimation failed: %w", err)
+	}
+
+	tip, err := suggestGasTipCap(ctx, t.client)
+	if err != nil {
+		slot.Reuse()
 		return common.Hash{}, err
 	}
 
-	tip, err := suggestGasTipCap(ctx, d.Client)
+	head, err := t.client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return common.Hash{}, err
-	}
-
-	head, err := d.Client.HeaderByNumber(ctx, nil)
-	if err != nil {
+		slot.Reuse()
 		return common.Hash{}, fmt.Errorf("failed to get latest block header: %w", err)
 	}
 
 	var gasPrice *big.Int
 	if head.BaseFee == nil {
-		gasPrice, err = suggestGasPrice(ctx, d.Client)
+		gasPrice, err = suggestGasPrice(ctx, t.client)
 		if err != nil {
+			slot.Reuse()
 			return common.Hash{}, err
 		}
 	}
 
-	d.nonceMu.Lock()
-	defer d.nonceMu.Unlock()
+	tx := buildTxWithNonce(chainID, factory.Address, calldata, n, gasLimit, tip, head.BaseFee, gasPrice)
 
-	nonce, err := d.nextNonce(ctx)
+	signed, err := t.signer.SignTx(ctx, tx, chainID)
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	tx := buildTxWithNonce(chainID, factory.Address, calldata, nonce, gasLimit, tip, head.BaseFee, gasPrice)
-
-	signed, err := d.Signer.SignTx(ctx, tx, chainID)
-	if err != nil {
-		d.hasNonce = false
+		slot.Reuse()
 		return common.Hash{}, err
 	}
 
-	if err := d.Client.SendTransaction(ctx, signed); err != nil {
-		d.hasNonce = false
-		return common.Hash{}, fmt.Errorf("failed to submit transaction: %w", err)
+	sendErr := t.client.SendTransaction(ctx, signed)
+	if sendErr != nil {
+		slot.Reclaim()
+		return common.Hash{}, fmt.Errorf("failed to submit transaction: %w", sendErr)
 	}
 
+	slot.Commit()
 	return signed.Hash(), nil
 }
 
 // Wait waits for a previously submitted deployment transaction to be mined,
 // verifies the deployed address matches the prediction, and returns the result.
-func (d *TxManager) Wait(
+func (t *TxManager) Wait(
 	ctx context.Context,
 	deployment versions.Deployment,
 	chainID *big.Int,
@@ -167,7 +171,7 @@ func (d *TxManager) Wait(
 		return nil, fmt.Errorf("address prediction failed: %w", err)
 	}
 
-	receipt, err := waitForReceipt(ctx, d.Client, txHash)
+	receipt, err := waitForReceipt(ctx, t.client, txHash)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +204,7 @@ func (d *TxManager) Wait(
 
 // Deploy submits a deployment transaction and waits for it to be mined.
 // Use Submit and Wait if you need to deploy in a non-blocking fashion.
-func (d *TxManager) Deploy(
+func (t *TxManager) Deploy(
 	ctx context.Context,
 	deployment versions.Deployment,
 	chainID *big.Int,
@@ -208,20 +212,7 @@ func (d *TxManager) Deploy(
 	input predict.Input,
 	opts *Options,
 ) (*Result, error) {
-	predictedAddr, err := predict.Address(input, deployment, chainID, isL2)
-	if err != nil {
-		return nil, fmt.Errorf("address prediction failed: %w", err)
-	}
-
-	deployed, err := isDeployed(ctx, d.Client, predictedAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check deployment status: %w", err)
-	}
-	if deployed {
-		return nil, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
-	}
-
-	txHash, err := d.Submit(ctx, deployment, chainID, isL2, input, opts)
+	txHash, err := t.Submit(ctx, deployment, chainID, isL2, input, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -229,24 +220,23 @@ func (d *TxManager) Deploy(
 	timeoutCtx, cancel := context.WithTimeout(ctx, opts.timeout())
 	defer cancel()
 
-	return d.Wait(timeoutCtx, deployment, chainID, isL2, input, txHash)
-}
-
-func (d *TxManager) nextNonce(ctx context.Context) (uint64, error) {
-	if !d.hasNonce {
-		n, err := d.Client.PendingNonceAt(ctx, d.Signer.Address())
-		if err != nil {
-			return 0, err
+	result, err := t.Wait(timeoutCtx, deployment, chainID, isL2, input, txHash)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("%w: %s", ErrDeployTimeout, txHash.Hex())
 		}
-
-		d.nonce = n
-		d.hasNonce = true
-
-		return d.nonce, nil
+		return nil, err
 	}
 
-	d.nonce++
-	return d.nonce, nil
+	return result, nil
+}
+
+func (t *TxManager) CodeAt(ctx context.Context, addr common.Address) ([]byte, error) {
+	return t.client.CodeAt(ctx, addr, nil)
+}
+
+func (t *TxManager) Close() {
+	t.signer.Close()
 }
 
 func waitForReceipt(
@@ -254,6 +244,9 @@ func waitForReceipt(
 	client *ethclient.Client,
 	txHash common.Hash,
 ) (*types.Receipt, error) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		receipt, err := client.TransactionReceipt(ctx, txHash)
 		if err == nil {
@@ -262,14 +255,13 @@ func waitForReceipt(
 
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("%w: %s", ErrDeployTimeout, txHash.Hex())
-		case <-time.After(2 * time.Second):
+			return nil, ctx.Err()
+		case <-ticker.C:
 			// continue polling
 		}
 	}
 }
 
-// buildCalldata ABI-encodes the createProxyWithNonce call for the factory.
 func buildCalldata(
 	input predict.Input,
 	deployment versions.Deployment,
@@ -353,7 +345,6 @@ func buildTxWithNonce(
 	})
 }
 
-// isDeployed returns true if a contract is already deployed at the given address.
 func isDeployed(ctx context.Context, client *ethclient.Client, addr common.Address) (bool, error) {
 	code, err := client.CodeAt(ctx, addr, nil)
 	if err != nil {
@@ -363,8 +354,6 @@ func isDeployed(ctx context.Context, client *ethclient.Client, addr common.Addre
 	return len(code) > 0, nil
 }
 
-// extractDeployedAddress reads the ProxyCreation event from the deployment receipt to
-// get the actual address the factory deployed to.
 func extractDeployedAddress(
 	receipt *types.Receipt,
 	deployment versions.Deployment,
@@ -389,14 +378,17 @@ func extractDeployedAddress(
 		}
 
 		if len(log.Topics) > 1 {
-			// indexed: address is in Topics[1]
+			// if indexed, address is in Topics[1]
 			return common.BytesToAddress(log.Topics[1].Bytes()), nil
 		}
 
-		// non-indexed: address is in log.Data
-		if len(log.Data) >= 32 {
-			return common.BytesToAddress(log.Data[12:32]), nil
+		// if not indexed, address is in log.Data
+		if len(log.Data) != 32 {
+			return common.Address{}, fmt.Errorf(
+				"ProxyCreation log data has unexpected length %d, want 32", len(log.Data),
+			)
 		}
+		return common.BytesToAddress(log.Data[12:32]), nil
 	}
 
 	return common.Address{}, errors.New("ProxyCreation event not found in transaction logs")

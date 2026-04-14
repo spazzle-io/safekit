@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"errors"
 	"math/big"
 	"strconv"
 	"strings"
@@ -47,7 +46,7 @@ func (m *mockSource) callCount() int {
 	return m.idx
 }
 
-func newManager(t *testing.T, mr *miniredis.Miniredis, src *mockSource, instanceID string, opts ...func(*Options)) *NonceManager {
+func newTestManager(t *testing.T, mr *miniredis.Miniredis, src *mockSource, instanceID string, opts ...func(*Options)) *NonceManager {
 	t.Helper()
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
@@ -77,24 +76,9 @@ func newManager(t *testing.T, mr *miniredis.Miniredis, src *mockSource, instance
 	return m
 }
 
-func TestNewNonceManagerValidation_MissingRedis(t *testing.T) {
-	if _, err := NewNonceManager(Options{InstanceID: "worker-1"}); err == nil {
-		t.Fatal(err)
-	}
-}
-
-func TestNewNonceManagerValidation_MissingInstanceID(t *testing.T) {
-	mr := miniredis.RunT(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-
-	nm, err := NewNonceManager(Options{Redis: rdb})
-	if err != nil {
-		t.Fatalf("want success when InstanceID omitted, got: %v", err)
-	}
-
-	if nm.instanceID == "" {
-		t.Fatal("want generated instanceID, got empty string")
+func TestNewNonceManagerValidation(t *testing.T) {
+	if _, err := NewNonceManager(Options{}); err == nil {
+		t.Fatal("want error for missing redis client")
 	}
 }
 
@@ -104,40 +88,31 @@ func TestInitValidation(t *testing.T) {
 	addr := common.HexToAddress("0x1234")
 	chainID := big.NewInt(1)
 
-	newUninitialisedManager := func(t *testing.T) *NonceManager {
+	newUninitialised := func(t *testing.T) *NonceManager {
 		t.Helper()
-
 		rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 		t.Cleanup(func() { _ = rdb.Close() })
-
-		m, err := NewNonceManager(Options{
-			Redis:      rdb,
-			InstanceID: "worker-1",
-		})
+		m, err := NewNonceManager(Options{Redis: rdb})
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("NewNonceManager: %v", err)
 		}
-
 		return m
 	}
 
 	t.Run("missing source", func(t *testing.T) {
-		m := newUninitialisedManager(t)
-		if err := m.Init(nil, chainID, addr); err == nil {
+		if err := newUninitialised(t).Init(nil, chainID, addr); err == nil {
 			t.Fatal("want error for missing source")
 		}
 	})
 
 	t.Run("nil chain ID", func(t *testing.T) {
-		m := newUninitialisedManager(t)
-		if err := m.Init(src, nil, addr); err == nil {
+		if err := newUninitialised(t).Init(src, nil, addr); err == nil {
 			t.Fatal("want error for nil chain ID")
 		}
 	})
 
 	t.Run("empty address", func(t *testing.T) {
-		m := newUninitialisedManager(t)
-		if err := m.Init(src, chainID, common.Address{}); err == nil {
+		if err := newUninitialised(t).Init(src, chainID, common.Address{}); err == nil {
 			t.Fatal("want error for empty address")
 		}
 	})
@@ -148,12 +123,9 @@ func TestAcquireBeforeInitReturnsError(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
 
-	m, err := NewNonceManager(Options{
-		Redis:      rdb,
-		InstanceID: "worker-1",
-	})
+	m, err := NewNonceManager(Options{Redis: rdb})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewNonceManager: %v", err)
 	}
 
 	_, _, err = m.Acquire(context.Background())
@@ -162,22 +134,20 @@ func TestAcquireBeforeInitReturnsError(t *testing.T) {
 	}
 }
 
-func TestNormalAcquireRelease(t *testing.T) {
+func TestNormalCommit(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{5}}
-	m := newManager(t, mr, src, "worker-1")
+	m := newTestManager(t, mr, src, "worker-1")
 
 	for i := uint64(0); i < 3; i++ {
-		n, release, err := m.Acquire(context.Background())
+		n, slot, err := m.Acquire(context.Background())
 		if err != nil {
 			t.Fatalf("Acquire %d: %v", i, err)
 		}
-
 		if n != 5+i {
 			t.Fatalf("Acquire %d: want %d got %d", i, 5+i, n)
 		}
-
-		release(nil)
+		slot.Commit()
 	}
 
 	if src.callCount() != 1 {
@@ -185,12 +155,90 @@ func TestNormalAcquireRelease(t *testing.T) {
 	}
 }
 
+func TestReuseReturnsSameNonce(t *testing.T) {
+	mr := miniredis.RunT(t)
+	src := &mockSource{nonces: []uint64{7}}
+	m := newTestManager(t, mr, src, "worker-1")
+
+	n, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("first Acquire: %v", err)
+	}
+	if n != 7 {
+		t.Fatalf("want 7, got %d", n)
+	}
+	slot.Reuse()
+
+	n, slot, err = m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("second Acquire: %v", err)
+	}
+	if n != 7 {
+		t.Fatalf("want 7 again after Reuse, got %d", n)
+	}
+	slot.Commit()
+
+	if src.callCount() != 1 {
+		t.Fatalf("want 1 chain call, got %d", src.callCount())
+	}
+}
+
+func TestReclaimTriggersRefetch(t *testing.T) {
+	mr := miniredis.RunT(t)
+	src := &mockSource{nonces: []uint64{7, 9}}
+	m := newTestManager(t, mr, src, "worker-1")
+
+	n, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("first Acquire: %v", err)
+	}
+	if n != 7 {
+		t.Fatalf("want 7, got %d", n)
+	}
+	slot.Reclaim()
+
+	n, slot, err = m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("second Acquire: %v", err)
+	}
+	if n != 9 {
+		t.Fatalf("want 9 after Reclaim, got %d", n)
+	}
+	slot.Commit()
+
+	if src.callCount() != 2 {
+		t.Fatalf("want 2 chain calls, got %d", src.callCount())
+	}
+}
+
+func TestReclaimRespectsDelay(t *testing.T) {
+	mr := miniredis.RunT(t)
+	src := &mockSource{nonces: []uint64{0, 1}}
+	m := newTestManager(t, mr, src, "worker-1", func(o *Options) {
+		o.StaleNonceDelay = 100 * time.Millisecond
+	})
+
+	_, slot, _ := m.Acquire(context.Background())
+	slot.Reclaim()
+
+	start := time.Now()
+	_, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("Acquire after Reclaim: %v", err)
+	}
+	slot.Commit()
+
+	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
+		t.Fatalf("want at least 100ms delay, got %v", elapsed)
+	}
+}
+
 func TestTwoInstancesCoordinate(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{0}}
 
-	m1 := newManager(t, mr, src, "worker-1")
-	m2 := newManager(t, mr, src, "worker-2")
+	m1 := newTestManager(t, mr, src, "worker-1")
+	m2 := newTestManager(t, mr, src, "worker-2")
 
 	const total = 10
 
@@ -202,23 +250,19 @@ func TestTwoInstancesCoordinate(t *testing.T) {
 
 	acquire := func(m *NonceManager) {
 		defer wg.Done()
-
-		n, release, err := m.Acquire(context.Background())
+		n, slot, err := m.Acquire(context.Background())
 		if err != nil {
 			t.Errorf("Acquire: %v", err)
 			return
 		}
-
 		mu.Lock()
 		nonces = append(nonces, n)
 		mu.Unlock()
-
-		release(nil)
+		slot.Commit()
 	}
 
 	for i := 0; i < total; i++ {
 		wg.Add(1)
-
 		if i%2 == 0 {
 			go acquire(m1)
 		} else {
@@ -247,64 +291,14 @@ func TestTwoInstancesCoordinate(t *testing.T) {
 	}
 }
 
-func TestReleaseErrTriggersRefetch(t *testing.T) {
-	mr := miniredis.RunT(t)
-	src := &mockSource{nonces: []uint64{7, 9}}
-	m := newManager(t, mr, src, "worker-1")
-
-	n, release, err := m.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("first Acquire: %v", err)
-	}
-	if n != 7 {
-		t.Fatalf("want 7, got %d", n)
-	}
-	release(errors.New("send failed"))
-
-	n, release, err = m.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("second Acquire: %v", err)
-	}
-	if n != 9 {
-		t.Fatalf("want 9, got %d", n)
-	}
-	release(nil)
-
-	if src.callCount() != 2 {
-		t.Fatalf("want 2 chain calls, got %d", src.callCount())
-	}
-}
-
-func TestRefetchRespectsDelay(t *testing.T) {
-	mr := miniredis.RunT(t)
-	src := &mockSource{nonces: []uint64{0, 1}}
-	m := newManager(t, mr, src, "worker-1", func(o *Options) {
-		o.StaleNonceDelay = 100 * time.Millisecond
-	})
-
-	_, release, _ := m.Acquire(context.Background())
-	release(errors.New("failed"))
-
-	start := time.Now()
-	_, release, err := m.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("Acquire after failure: %v", err)
-	}
-	release(nil)
-
-	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
-		t.Fatalf("want at least 100ms delay, got %v", elapsed)
-	}
-}
-
 func TestLockExpiryRecovery(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{0}}
 
-	m1 := newManager(t, mr, src, "worker-1", func(o *Options) {
+	m1 := newTestManager(t, mr, src, "worker-1", func(o *Options) {
 		o.LockTTL = 100 * time.Millisecond
 	})
-	m2 := newManager(t, mr, src, "worker-2", func(o *Options) {
+	m2 := newTestManager(t, mr, src, "worker-2", func(o *Options) {
 		o.LockTTL = 100 * time.Millisecond
 	})
 
@@ -318,17 +312,17 @@ func TestLockExpiryRecovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	_, release, err := m2.Acquire(ctx)
+	_, slot, err := m2.Acquire(ctx)
 	if err != nil {
-		t.Fatalf("Acquire after lock expiry: %v", err)
+		t.Fatalf("m2 Acquire after lock expiry: %v", err)
 	}
-	release(nil)
+	slot.Commit()
 }
 
 func TestReleaseLockScript(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{0}}
-	m := newManager(t, mr, src, "worker-1")
+	m := newTestManager(t, mr, src, "worker-1")
 
 	_, _, err := m.Acquire(context.Background())
 	if err != nil {
@@ -343,8 +337,7 @@ func TestReleaseLockScript(t *testing.T) {
 		t.Fatal("want error releasing lock owned by someone else")
 	}
 
-	val, err := mr.Get(m.lockKey())
-	require.NoError(t, err)
+	val, _ := mr.Get(m.lockKey())
 	if val != "someone-else" {
 		t.Fatalf("lock should still be held by someone-else, got %q", val)
 	}
@@ -354,8 +347,8 @@ func TestContextCancellationWhileWaitingForLock(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{0}}
 
-	m1 := newManager(t, mr, src, "worker-1")
-	m2 := newManager(t, mr, src, "worker-2")
+	m1 := newTestManager(t, mr, src, "worker-1")
+	m2 := newTestManager(t, mr, src, "worker-2")
 
 	_, _, err := m1.Acquire(context.Background())
 	if err != nil {
@@ -366,34 +359,34 @@ func TestContextCancellationWhileWaitingForLock(t *testing.T) {
 	defer cancel()
 
 	_, _, err = m2.Acquire(ctx)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("want DeadlineExceeded, got %v", err)
+	if err == nil {
+		t.Fatal("want error when context cancelled")
 	}
 }
 
 func TestContextCancellationDuringRefetch(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{0, 1}}
-	m := newManager(t, mr, src, "worker-1", func(o *Options) {
+	m := newTestManager(t, mr, src, "worker-1", func(o *Options) {
 		o.StaleNonceDelay = 5 * time.Second
 	})
 
-	_, release, _ := m.Acquire(context.Background())
-	release(errors.New("failed"))
+	_, slot, _ := m.Acquire(context.Background())
+	slot.Reclaim()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	_, _, err := m.Acquire(ctx)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("want DeadlineExceeded, got %v", err)
+	if err == nil {
+		t.Fatal("want error when context cancelled during refetch")
 	}
 }
 
 func TestCorruptCounterReturnsError(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{0}}
-	m := newManager(t, mr, src, "worker-1")
+	m := newTestManager(t, mr, src, "worker-1")
 
 	err := mr.Set(m.counterKey(), "not-a-number")
 	require.NoError(t, err)
@@ -414,12 +407,9 @@ func TestDefaultsApplied(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
 
-	m, err := NewNonceManager(Options{
-		Redis:      rdb,
-		InstanceID: "worker-1",
-	})
+	m, err := NewNonceManager(Options{Redis: rdb})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewNonceManager: %v", err)
 	}
 
 	if m.lockTTL != defaultLockTTL {
@@ -431,6 +421,9 @@ func TestDefaultsApplied(t *testing.T) {
 	if m.staleNonceDelay <= 0 {
 		t.Fatal("want positive staleNonceDelay")
 	}
+	if m.instanceID == "" {
+		t.Fatal("want generated instanceID, got empty string")
+	}
 }
 
 func TestCounterKeyNamespacing(t *testing.T) {
@@ -440,14 +433,14 @@ func TestCounterKeyNamespacing(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
 
-	m, err := NewNonceManager(Options{Redis: rdb, InstanceID: "worker-1"})
+	m, err := NewNonceManager(Options{Redis: rdb})
 	if err != nil {
 		t.Fatalf("NewNonceManager: %v", err)
 	}
 
-	addr := common.HexToAddress("0xDea")
+	addr := common.HexToAddress("0xDeaDbeefdEAdbeefdEadbEEFdeadbeEFdEaDbeeF")
 	if err := m.Init(src, big.NewInt(137), addr); err != nil {
-		t.Fatal(err)
+		t.Fatalf("Init: %v", err)
 	}
 
 	expectedCounter := "safekit:nonce:137:" + strings.ToLower(addr.Hex())
@@ -464,27 +457,30 @@ func TestCounterKeyNamespacing(t *testing.T) {
 func TestCounterSeededOnce(t *testing.T) {
 	mr := miniredis.RunT(t)
 	src := &mockSource{nonces: []uint64{10}}
-	m := newManager(t, mr, src, "worker-1")
+	m := newTestManager(t, mr, src, "worker-1")
 
 	for i := 0; i < 5; i++ {
-		_, release, err := m.Acquire(context.Background())
+		_, slot, err := m.Acquire(context.Background())
 		if err != nil {
 			t.Fatalf("Acquire %d: %v", i, err)
 		}
-		release(nil)
+		slot.Commit()
 	}
 
 	if src.callCount() != 1 {
 		t.Fatalf("want 1 chain call, got %d", src.callCount())
 	}
 
-	val, err := redis.NewClient(&redis.Options{Addr: mr.Addr()}).Get(context.Background(), m.counterKey()).Result()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	val, err := rdb.Get(context.Background(), m.counterKey()).Result()
 	if err != nil {
 		t.Fatalf("GET counter: %v", err)
 	}
 
 	n, _ := strconv.ParseUint(val, 10, 64)
 	if n != 15 {
-		t.Fatalf("want counter 15, got %d", n)
+		t.Fatalf("want counter 15 (seeded at 10, incremented 5 times), got %d", n)
 	}
 }

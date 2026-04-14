@@ -23,14 +23,14 @@ import (
 	"github.com/spazzle-io/safekit/pkg/signer"
 )
 
-// integrationClientFromEnv builds a Client from environment variables.
+// integrationClientFromEnv builds a client from environment variables.
 // Required:
 //
 //	SAFEKIT_TEST_RPC_URL   — RPC endpoint for the test network
 //	SAFEKIT_TEST_ADMIN_KEY — hex-encoded private key for the admin wallet
 //	SAFEKIT_TEST_CHAIN_ID  — chain ID as a decimal integer
 //	SAFEKIT_TEST_VERSION   — Safe version e.g. "1.4.1"
-func integrationClientFromEnv(t *testing.T) *Client {
+func integrationClientFromEnv(t *testing.T) *client {
 	t.Helper()
 
 	rpcURL := requireEnv(t, "SAFEKIT_TEST_RPC_URL")

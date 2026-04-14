@@ -39,7 +39,7 @@ type NonceManager struct {
 }
 
 // NewNonceManager constructs a NonceManager from the given options.
-func NewNonceManager(opts Options) (*NonceManager, error) {
+func NewNonceManager(opts Options) *NonceManager {
 	delay := opts.StaleNonceDelay
 	if delay <= 0 {
 		delay = internalnonce.DefaultStaleNonceDelay
@@ -51,7 +51,7 @@ func NewNonceManager(opts Options) (*NonceManager, error) {
 	return &NonceManager{
 		staleNonceDelay: delay,
 		inflightCh:      ch,
-	}, nil
+	}
 }
 
 // Init injects chain-specific context required for nonce management.
@@ -79,7 +79,15 @@ func (m *NonceManager) Init(source internalnonce.Source, chainID *big.Int, addre
 
 // Acquire blocks until a nonce slot is available, returning the next nonce and a release function
 // the caller must invoke exactly once after attempting to broadcast the transaction.
-func (m *NonceManager) Acquire(ctx context.Context) (uint64, nonce.ReleaseFunc, error) {
+func (m *NonceManager) Acquire(ctx context.Context) (uint64, nonce.Slot, error) {
+	m.mu.Lock()
+	ready := m.source != nil
+	m.mu.Unlock()
+
+	if !ready {
+		return 0, nil, fmt.Errorf("nonce source required")
+	}
+
 	select {
 	case <-ctx.Done():
 		return 0, nil, ctx.Err()
@@ -92,16 +100,7 @@ func (m *NonceManager) Acquire(ctx context.Context) (uint64, nonce.ReleaseFunc, 
 		return 0, nil, fmt.Errorf("failed to fetch nonce: %w", err)
 	}
 
-	release := func(broadcastErr error) {
-		if broadcastErr != nil {
-			m.mu.Lock()
-			m.dirty = true
-			m.mu.Unlock()
-		}
-		m.inflightCh <- struct{}{}
-	}
-
-	return n, release, nil
+	return n, &slot{manager: m}, nil
 }
 
 // nextNonce returns the next nonce to use. If the nonce is dirty it waits StaleNonceDelay then re-fetches
@@ -155,5 +154,7 @@ func (m *NonceManager) nextNonce(ctx context.Context) (uint64, error) {
 	return n, nil
 }
 
-var _ nonce.Manager = (*NonceManager)(nil)
-var _ internalnonce.Initable = (*NonceManager)(nil)
+var (
+	_ nonce.Manager          = (*NonceManager)(nil)
+	_ internalnonce.Initable = (*NonceManager)(nil)
+)

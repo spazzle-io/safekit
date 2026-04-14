@@ -1,5 +1,5 @@
 // Package mock provides an in-memory Safe client for use in tests.
-// It implements safe.Deployer without making any network calls.
+// It implements safe.Client without making any network calls.
 //
 // Usage:
 //
@@ -26,7 +26,7 @@ type deployedSafe struct {
 	gasUsed   uint64
 }
 
-// Client is an in-memory Safe client that implements safe.Deployer.
+// Client is an in-memory Safe client that implements safe.Client.
 // Predicted addresses are computed using the real CREATE2 math.
 // Deployments are recorded in memory. No network, no gas, no chain.
 type Client struct {

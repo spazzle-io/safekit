@@ -125,7 +125,7 @@ func (m *NonceManager) Init(source internalnonce.Source, chainID *big.Int, addre
 
 // Acquire blocks until a nonce slot is available, returning the next nonce and a release function
 // the caller must invoke exactly once after attempting to broadcast the transaction.
-func (m *NonceManager) Acquire(ctx context.Context) (uint64, pkgnonce.ReleaseFunc, error) {
+func (m *NonceManager) Acquire(ctx context.Context) (uint64, pkgnonce.Slot, error) {
 	if m.source == nil {
 		return 0, nil, fmt.Errorf("nonce source required")
 	}
@@ -143,18 +143,7 @@ func (m *NonceManager) Acquire(ctx context.Context) (uint64, pkgnonce.ReleaseFun
 		return 0, nil, fmt.Errorf("failed to fetch nonce: %w", err)
 	}
 
-	release := func(broadcastErr error) {
-		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if broadcastErr != nil {
-			m.dirty.Store(true)
-		}
-
-		_ = m.releaseLock(releaseCtx)
-	}
-
-	return n, release, nil
+	return n, &slot{manager: m}, nil
 }
 
 func (m *NonceManager) lockKey() string {

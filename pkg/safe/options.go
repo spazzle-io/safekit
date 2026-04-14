@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultDeployTimeout = 5 * time.Minute
+	defaultDeployTimeout = 2 * time.Minute
 	defaultGasMultiplier = 1.2
 )
 
@@ -48,7 +48,7 @@ type Options struct {
 	NonceManager nonce.Manager
 
 	// DeployTimeout is how long Deploy will wait for a transaction to be mined.
-	// Defaults to 5 minutes.
+	// Defaults to 2 minutes.
 	DeployTimeout time.Duration
 
 	// GasMultiplier is applied to the estimated gas to give headroom.

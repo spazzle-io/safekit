@@ -13,10 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// EnvSigner loads a private key from an environment variable at startup,
-// parses it immediately, and never stores the raw string. It's the right
-// choice when your key lives in an environment variable — which for most
-// backend services means it came from a secrets manager at deploy time.
+// EnvSigner loads a private key from an environment variable at startup, parses it immediately,
+// and never stores the raw string. It's the right choice when your key lives in an environment variable.
 //
 // Usage:
 //
@@ -30,8 +28,7 @@ type EnvSigner struct {
 	address common.Address
 }
 
-// NewEnvSigner reads a hex-encoded private key from the named environment
-// variable and returns a ready-to-use signer.
+// NewEnvSigner reads a hex-encoded private key from the named environment variable and returns a ready-to-use signer.
 func NewEnvSigner(envVar string) (Signer, error) {
 	raw := strings.TrimSpace(os.Getenv(envVar))
 	if raw == "" {
@@ -71,9 +68,7 @@ func (s *EnvSigner) SignTx(_ context.Context, tx *types.Transaction, chainID *bi
 	return signed, nil
 }
 
-// Close zeroes the private key material from memory. Call this when you're
-// done with the signer — typically via defer right after construction.
-// After Close, SignTx will return an error.
+// Close zeroes the private key material from memory.
 func (s *EnvSigner) Close() {
 	if s.key != nil && s.key.D != nil {
 		clear(s.key.D.Bits())
