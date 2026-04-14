@@ -1,0 +1,62 @@
+name: Integration Job
+
+on:
+  workflow_call:
+    inputs:
+      job-name:
+        required: true
+        type: string
+      chain-id:
+        required: true
+        type: string
+      go-version:
+        required: false
+        type: string
+        default: '1.24'
+      timeout:
+        required: false
+        type: string
+        default: '15m'
+    secrets:
+      rpc-url:
+        required: true
+      admin-key:
+        required: true
+
+jobs:
+  test:
+    name: ${{ inputs.job-name }} / ${{ matrix.version }}
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 10
+
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        version: ["1.3.0", "1.4.1", "1.5.0"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: run integration tests
+        env:
+          SAFEKIT_TEST_RPC_URL:   ${{ secrets.rpc-url }}
+          SAFEKIT_TEST_ADMIN_KEY: ${{ secrets.admin-key }}
+          SAFEKIT_TEST_CHAIN_ID:  ${{ inputs.chain-id }}
+          SAFEKIT_TEST_VERSION:   ${{ matrix.version }}
+          SAFEKIT_TEST_REDIS_URL: redis://localhost:6379
+        run: go test -tags integration -timeout ${{ inputs.timeout }} -v ./pkg/safe/...

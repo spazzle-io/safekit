@@ -1,0 +1,43 @@
+name: Integration Tests
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ethereum-sepolia:
+    name: Ethereum Sepolia
+    uses: ./.github/workflows/_integration-job.yml
+    with:
+      job-name: ethereum-sepolia
+      chain-id: "11155111"
+    secrets:
+      rpc-url: ${{ secrets.ETH_SEPOLIA_RPC_URL }}
+      # https://sepolia.etherscan.io/address/0x74B77Dc0B6C2CCeb9F37826a720C63E4ebb84A9e
+      admin-key: ${{ secrets.ETH_SEPOLIA_ADMIN_KEY }}
+
+  base-sepolia:
+    name: Base Sepolia
+    uses: ./.github/workflows/_integration-job.yml
+    with:
+      job-name: base-sepolia
+      chain-id: "84532"
+    secrets:
+      rpc-url: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+      # https://sepolia.basescan.org/address/0xC24d9c367Cb791ab1CAF3BC28d2dE2937EC53A7A
+      admin-key: ${{ secrets.BASE_SEPOLIA_ADMIN_KEY }}
+
+  arbitrum-sepolia:
+    name: Arbitrum Sepolia
+    uses: ./.github/workflows/_integration-job.yml
+    with:
+      job-name: arbitrum-sepolia
+      chain-id: "421614"
+    secrets:
+      rpc-url: ${{ secrets.ARB_SEPOLIA_RPC_URL }}
+      # https://sepolia.arbiscan.io/address/0x446728FBb34a0B9C9394BDB53689791e1647a80a
+      admin-key: ${{ secrets.ARB_SEPOLIA_ADMIN_KEY }}
