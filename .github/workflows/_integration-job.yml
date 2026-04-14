@@ -1,4 +1,4 @@
-name: Integration Job
+name: integration-job
 
 on:
   workflow_call:
@@ -52,7 +52,7 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
 
-      - name: run integration tests
+      - name: integration-tests
         env:
           SAFEKIT_TEST_RPC_URL:   ${{ secrets.rpc-url }}
           SAFEKIT_TEST_ADMIN_KEY: ${{ secrets.admin-key }}
