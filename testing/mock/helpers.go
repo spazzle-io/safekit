@@ -16,8 +16,6 @@ import (
 	_ "github.com/spazzle-io/safekit/internal/versions/v1_4_1"
 )
 
-// predictAddress computes the real CREATE2 address for the given config.
-// Uses v1.4.1 on Ethereum mainnet as the mock's fixed context.
 func predictAddress(owners []common.Address, threshold uint8, salt []byte) (common.Address, error) {
 	deployment, err := versions.Get(version.V141)
 	if err != nil {
@@ -36,8 +34,8 @@ func predictAddress(owners []common.Address, threshold uint8, salt []byte) (comm
 	)
 }
 
-// syntheticTxHash generates a deterministic fake transaction hash from
-// a Safe address and block number. Unique per deployment, stable across test runs.
+// syntheticTxHash generates a deterministic fake transaction hash from a Safe address and block number.
+// Unique per deployment, stable across test runs.
 func syntheticTxHash(addr common.Address, block uint64) common.Hash {
 	h := sha256.New()
 	h.Write(addr.Bytes())
@@ -46,5 +44,6 @@ func syntheticTxHash(addr common.Address, block uint64) common.Hash {
 	binary.BigEndian.PutUint64(blockBytes, block)
 
 	h.Write(blockBytes)
+
 	return common.BytesToHash(h.Sum(nil))
 }
