@@ -1,4 +1,4 @@
-name: Integration Tests
+name: integration-tests
 
 on:
   schedule:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   ethereum-sepolia:
-    name: Ethereum Sepolia
+    name: ethereum-sepolia
     uses: ./.github/workflows/_integration-job.yml
     with:
       job-name: ethereum-sepolia
@@ -21,7 +21,7 @@ jobs:
       admin-key: ${{ secrets.ETH_SEPOLIA_ADMIN_KEY }}
 
   base-sepolia:
-    name: Base Sepolia
+    name: base-sepolia
     uses: ./.github/workflows/_integration-job.yml
     with:
       job-name: base-sepolia
@@ -32,7 +32,7 @@ jobs:
       admin-key: ${{ secrets.BASE_SEPOLIA_ADMIN_KEY }}
 
   arbitrum-sepolia:
-    name: Arbitrum Sepolia
+    name: arbitrum-sepolia
     uses: ./.github/workflows/_integration-job.yml
     with:
       job-name: arbitrum-sepolia
