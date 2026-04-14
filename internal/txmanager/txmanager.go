@@ -383,9 +383,10 @@ func extractDeployedAddress(
 		}
 
 		// if not indexed, address is in log.Data
-		if len(log.Data) != 32 {
+		if len(log.Data) < 32 {
 			return common.Address{}, fmt.Errorf(
-				"ProxyCreation log data has unexpected length %d, want 32", len(log.Data),
+				"ProxyCreation log data too short: %d bytes, want at least 32",
+				len(log.Data),
 			)
 		}
 		return common.BytesToAddress(log.Data[12:32]), nil
