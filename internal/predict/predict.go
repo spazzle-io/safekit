@@ -1,7 +1,6 @@
 // Package predict computes the deterministic address a Safe will be deployed
 // to before it exists on-chain. This is pure computation with no network calls,
-// no transactions, no gas. The same inputs for the same chain always produce
-// the same address.
+// no transactions, no gas. The same inputs for the same chain always produce the same address.
 package predict
 
 import (
