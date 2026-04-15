@@ -6,13 +6,13 @@ import "math/big"
 
 var Ethereum = &Chain{
 	ID:   big.NewInt(1),
-	Name: "Ethereum Mainnet",
+	Name: "Ethereum",
 	IsL2: false,
 }
 
 var Sepolia = &Chain{
 	ID:   big.NewInt(11155111),
-	Name: "Sepolia Testnet",
+	Name: "Sepolia",
 	IsL2: false,
 }
 
@@ -20,7 +20,7 @@ var Sepolia = &Chain{
 
 var Polygon = &Chain{
 	ID:   big.NewInt(137),
-	Name: "Polygon POS",
+	Name: "Polygon",
 	IsL2: true,
 }
 
@@ -32,7 +32,7 @@ var PolygonZkEVM = &Chain{
 
 var PolygonAmoy = &Chain{
 	ID:   big.NewInt(80002),
-	Name: "Polygon Amoy Testnet",
+	Name: "Polygon Amoy",
 	IsL2: true,
 }
 
@@ -52,7 +52,7 @@ var ArbitrumNova = &Chain{
 
 var ArbitrumSepolia = &Chain{
 	ID:   big.NewInt(421614),
-	Name: "Arbitrum Sepolia Testnet",
+	Name: "Arbitrum Sepolia",
 	IsL2: true,
 }
 
@@ -66,7 +66,7 @@ var Base = &Chain{
 
 var BaseSepolia = &Chain{
 	ID:   big.NewInt(84532),
-	Name: "Base Sepolia Testnet",
+	Name: "Base Sepolia",
 	IsL2: true,
 }
 
@@ -80,7 +80,7 @@ var Optimism = &Chain{
 
 var OptimismSepolia = &Chain{
 	ID:   big.NewInt(11155420),
-	Name: "Optimism Sepolia Testnet",
+	Name: "Optimism Sepolia",
 	IsL2: true,
 }
 

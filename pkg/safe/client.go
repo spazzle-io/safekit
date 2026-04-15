@@ -30,6 +30,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	internalnonce "github.com/spazzle-io/safekit/internal/nonce"
 	"github.com/spazzle-io/safekit/pkg/nonce/local"
 
@@ -161,4 +163,10 @@ func New(opts Options) (Client, error) {
 
 func (c *client) Close() {
 	c.txManager.Close()
+}
+
+// Dial is a convenience wrapper around ethclient.Dial.
+// The returned client must be closed when no longer needed.
+func Dial(rpcUrl string) (*ethclient.Client, error) {
+	return ethclient.Dial(rpcUrl)
 }
