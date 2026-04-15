@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/spazzle-io/safekit/compare/v1.1.0...v1.2.0) (2026-04-15)
+
+
+### Features
+
+* add nonce manager and tx manager ([#15](https://github.com/spazzle-io/safekit/issues/15)) ([55722e4](https://github.com/spazzle-io/safekit/commit/55722e4da2fda924902e108cbf7706a5831e2842))
+
+
+### Bug Fixes
+
+* correct ProxyCreation log data length validation ([#17](https://github.com/spazzle-io/safekit/issues/17)) ([3530b12](https://github.com/spazzle-io/safekit/commit/3530b1294915fa59a734b49afca15154c933bc7a))
+
 ## [1.1.0](https://github.com/spazzle-io/safekit/compare/v1.0.1...v1.1.0) (2026-04-13)
 
 
