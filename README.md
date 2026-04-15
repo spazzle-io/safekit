@@ -34,7 +34,7 @@ Supports Safe v1.3.0, v1.4.1, and v1.5.0 on any EVM-compatible chain.
 
 - Go 1.24+
 - An Ethereum-compatible JSON-RPC endpoint
-- A funded admin wallet to pay for gas (never added as a Safe owner)
+- A funded admin wallet to pay for gas (never implicitly added as a Safe owner)
 
 ## Installation
 
@@ -53,7 +53,6 @@ import (
     "context"
     "fmt"
     "log"
-    "os"
 
     "github.com/ethereum/go-ethereum/common"
     "github.com/spazzle-io/safekit/pkg/chain"
@@ -63,23 +62,20 @@ import (
 )
 
 func main() {
-    // load the signer from an environment variable
     s, err := signer.NewEnvSigner("ADMIN_WALLET_PRIVATE_KEY")
     if err != nil {
         log.Fatal(err)
     }
 
-    // if your private key is already in memory (e.g. loaded from a secrets manager),
-    // use NewSignerFromHex instead:
-    //
-    //   s, err := signer.NewSignerFromHex(adminWalletPrivateKeyString)
-    //
-    // for production workloads, prefer a signer backed by a hardware security
-    // module or secrets manager such as AWS KMS or HashiCorp Vault.
+    eth, err := safe.Dial("RPC_URL")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer eth.Close()
 
     client, err := safe.New(safe.Options{
         Chain:   chain.Ethereum,
-        RPC:     os.Getenv("RPC_URL"),
+        Client:  eth,
         Signer:  s,
         Version: version.V141,
     })
@@ -99,16 +95,12 @@ func main() {
         log.Fatal(err)
     }
 
-    // predict the address before deploying
-    // predicting an address is pure computation. It doesn't make network calls,
-    // on-chain transactions, or consume gas.
     addr, err := client.PredictAddress(owners, 2, salt)
     if err != nil {
         log.Fatal(err)
     }
     fmt.Println("Safe will be deployed to:", addr.Hex())
 
-    // deploy when ready
     result, err := client.Deploy(context.Background(), owners, 2, salt)
     if err != nil {
         log.Fatal(err)
@@ -118,24 +110,133 @@ func main() {
 }
 ```
 
-## Deterministic addresses
+## Predicting addresses
 
-The same owners, threshold, and salt values always produce the same address on the same chain and version. This lets you know the wallet address before it has been deployed; allowing you to fund it in advance and deploy later.
+The same owners, threshold, and salt always produces the same address on the same chain and Safe version. This lets you know the wallet address before it exists on-chain, so you can fund it in advance and deploy later.
 
 ```go
-// store this in your database before deploying
+// predict and store the address before deploying
 addr, err := client.PredictAddress(owners, threshold, []byte(userID))
 
-// same call later produces the same address
-addr, err := client.PredictAddress(owners, threshold, []byte(userID))
-
-// deploy when ready
+// deploy when ready — result.SafeAddress always matches addr
 result, err := client.Deploy(ctx, owners, threshold, []byte(userID))
+```
 
+Prediction makes no network calls and costs no gas.
+
+If you do not need a reproducible address, generate a random salt with `safe.RandomSalt()` instead of deriving one from a stable value like a user ID.
+
+## Deployment patterns
+
+`Deploy` submits the transaction and blocks until it is mined. For more control:
+
+```go
+// submit without waiting for the transaction to mine
+txHash, err := client.SubmitDeployment(ctx, owners, threshold, salt)
+
+// wait for it later
+result, err := client.WaitForDeployment(ctx, owners, threshold, salt, txHash)
+
+// or poll yourself
+deployed, err := client.IsDeployed(ctx, predictedAddr)
+```
+
+## Concurrency
+
+A `safe.Client` is safe for concurrent use. Multiple goroutines may call any method concurrently.
+
+### Single process
+
+By default, SafeKit manages transaction nonces in memory. This works when one process owns the signer wallet on a given chain. Multiple goroutines calling `Deploy` or `SubmitDeployment` on the same client queue safely and each receive a unique nonce.
+
+### Multiple processes
+
+If multiple processes share the same signer on the same chain, use the Redis-backed nonce manager:
+
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    nonceredis "github.com/spazzle-io/safekit/pkg/nonce/redis"
+)
+
+rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+
+nm, err := nonceredis.NewNonceManager(nonceredis.Options{
+    Redis: rdb,
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+client, err := safe.New(safe.Options{
+    Chain:        chain.Polygon,
+    Client:       eth,
+    Signer:       s,
+    Version:      version.V141,
+    NonceManager: nm,
+})
+```
+
+All clients pointing at the same Redis instance and using the same signer on the same chain coordinate automatically. Only one client submits a transaction at a time.
+
+> [!WARNING]
+> SafeKit assumes no external actor is submitting transactions from the same wallet on the same chain while it is running. If something outside SafeKit uses the wallet concurrently, nonce conflicts may occur.
+
+## Configuration
+
+```go
+client, err := safe.New(safe.Options{
+    Chain:         chain.Base,
+    Client:        eth,             // required
+    Signer:        s,               // required
+    Version:       version.V141,    // required
+    NonceManager:  nm,              // optional. defaults to local in-memory nonce manager
+    DeployTimeout: 3 * time.Minute, // optional. defaults to 2 minutes
+    GasMultiplier: 1.3,             // optional. defaults to 1.2
+})
+```
+
+`safe.Dial` is a convenience wrapper around `ethclient.Dial`:
+
+```go
+eth, err := safe.Dial(os.Getenv("RPC_URL"))
+if err != nil {
+    log.Fatal(err)
+}
+defer eth.Close()
+```
+
+For production workloads, prefer a signer backed by a hardware security module or secrets manager. If your private key is already in memory, use `signer.NewSignerFromHex` instead of `signer.NewEnvSigner`.
+
+## Testing
+
+SafeKit ships a mock client that implements `safe.Client`. It uses real CREATE2 math so predicted and deployed addresses always match, but makes no network calls.
+
+```go
+import "github.com/spazzle-io/safekit/testing/mock"
+
+client := mock.NewClient()
+
+addr, err := client.PredictAddress(owners, threshold, salt)
+result, err := client.Deploy(ctx, owners, threshold, salt)
 // result.SafeAddress == addr, always
 ```
 
-For random one-off Safes where you do not need reproducibility, use `safe.RandomSalt()` instead.
+To test error handling, use `ForceError` or `ForceErrors`:
+
+```go
+// single error
+client.ForceError(safe.ErrTransactionReverted)
+_, err := client.Deploy(ctx, owners, threshold, salt)
+// err is safe.ErrTransactionReverted
+
+// sequential errors for testing retry logic
+client.ForceErrors(safe.ErrDeployTimeout, safe.ErrDeployTimeout, nil)
+// first two calls fail, third succeeds
+```
+
+> [!TIP]
+> For integration testing against a real chain without spending real funds, run a local chain with [Anvil](https://www.getfoundry.sh/anvil). It starts with pre-funded accounts, a known chain ID, and a deterministic RPC URL, so you can wire it directly into your test config.
 
 ## Supported versions
 
@@ -151,95 +252,43 @@ Check [Safe's supported networks](https://docs.safe.global/advanced/smart-accoun
 
 SafeKit ships with built-in support for the following chains:
 
-| Chain            | ID       |
-|------------------|----------|
-| Ethereum         | 1        |
-| Polygon          | 137      |
-| Polygon zkEVM    | 1101     |
-| Polygon Amoy     | 80002    |
-| Arbitrum One     | 42161    |
-| Arbitrum Nova    | 42170    |
-| Arbitrum Sepolia | 421614   |
-| Base             | 8453     |
-| Optimism         | 10       |
-| Optimism Sepolia | 11155420 |
-| BNB Smart Chain  | 56       |
-| BSC Testnet      | 97       |
-| Ethereum Sepolia | 11155111 |
-| Base Sepolia     | 84532    |
+| Chain                   | ID          |
+|-------------------------|-------------|
+| Ethereum                | 1           |
+| Sepolia                 | 11155111    |
+| Polygon                 | 137         |
+| Polygon zkEVM           | 1101        |
+| Polygon Amoy            | 80002       |
+| Arbitrum One            | 42161       |
+| Arbitrum Nova           | 42170       |
+| Arbitrum Sepolia        | 421614      |
+| Base                    | 8453        |
+| Base Sepolia            | 84532       |
+| Optimism                | 10          |
+| Optimism Sepolia        | 11155420    |
+| BNB Smart Chain         | 56          |
+| BNB Smart Chain Testnet | 97          |
 
-The full list is in `pkg/chain/known.go`. If your target chain is not listed,
-you can register it before calling `safe.New`:
+The full list is in `pkg/chain/known.go`. If your target chain is not listed, register it before calling `safe.New`:
 
 ```go
-chain.Register(&chain.Chain{
+err := chain.Register(&chain.Chain{
     ID:   big.NewInt(12345),
     Name: "my-chain",
     IsL2: true,
 })
 
+c, err := chain.Lookup(big.NewInt(12345))
+
 client, err := safe.New(safe.Options{
-    Chain:   chain.Lookup(big.NewInt(12345)),
+    Chain: c,
     ...
 })
 ```
 
-The chain must have Safe contracts deployed to it. Check the
-[Safe deployments registry](https://github.com/safe-global/safe-deployments)
-to confirm your chain is supported.
+Alternatively, if you want the chain included in SafeKit by default, open a pull request following the steps in [CONTRIBUTING.md](CONTRIBUTING.md#adding-support-for-a-new-chain).
 
-## Deployment options
-
-`Deploy` blocks until the transaction is mined. If you need more control:
-
-```go
-// submit and get a hash immediately
-txHash, err := client.SubmitDeployment(ctx, owners, threshold, salt)
-
-// wait for it later
-result, err := client.WaitForDeployment(ctx, owners, threshold, salt, txHash)
-
-// or poll yourself
-deployed, err := client.IsDeployed(ctx, predictedSafeAddress)
-```
-
-## Concurrency
-
-A `*Client` is safe for concurrent use. Multiple goroutines may call any client functions simultaneously.
-
-One constraint: a `Client` assumes exclusive use of its signer wallet on its chain. If another process or `Client`
-instance submits transactions from the same wallet on the same chain concurrently, nonce conflicts may occur.
-Use one `Client` per wallet per chain.
-
-## Configuration
-
-```go
-client, err := safe.New(safe.Options{
-    Chain:         chain.Base,
-    RPC:           os.Getenv("RPC_URL"),
-    Signer:        s,
-    Version:       version.V141,
-    DeployTimeout: 3 * time.Minute, // default: 5 minutes
-    GasMultiplier: 1.3,             // default: 1.2
-})
-```
-
-## Testing your application
-
-SafeKit ships a mock client that implements the same interface as the real client. It uses real CREATE2 math so predicted and deployed addresses always agree, but makes no network calls.
-
-```go
-import "github.com/spazzle-io/safekit/testing/mock"
-
-client := mock.NewClient()
-
-addr, err := client.PredictAddress(owners, threshold, salt)
-result, err := client.Deploy(ctx, owners, threshold, salt)
-
-// result.SafeAddress == addr, always, no network needed
-```
-
-Your application code should depend on the `safe.Deployer` interface rather than `*safe.Client` directly. This makes swapping in the mock client trivial.
+The chain must have Safe contracts deployed on it. Check the [Safe deployments registry](https://github.com/safe-global/safe-deployments) to confirm.
 
 ## License
 

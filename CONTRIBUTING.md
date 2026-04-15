@@ -69,8 +69,7 @@ ci: pin golangci-lint to v2.11.4
 ```
 
 The PR title is validated automatically when you open a pull request. The
-allowed types are `feat`, `fix`, `docs`, `chore`, `refactor`, `test`,
-and `ci`.
+allowed types are `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, and `ci`.
 
 release-please uses these commit messages to generate the CHANGELOG and
 determine version bumps. `feat` bumps the minor version, `fix` bumps the
@@ -89,14 +88,35 @@ reviewing a significant pull request. You do not need a funded wallet to
 contribute. The maintainers handle integration verification before merging.
 
 If you want to run integration tests locally, you will need a funded wallet
-on the target chain:
+on the target testnet. Set these environment variables before running:
+
+| Variable                  | Description                                                |
+|---------------------------|------------------------------------------------------------|
+| `SAFEKIT_TEST_RPC_URL`    | RPC endpoint for the target testnet                        |
+| `SAFEKIT_TEST_ADMIN_KEY`  | Hex-encoded private key of the funded wallet               |
+| `SAFEKIT_TEST_CHAIN_ID`   | Chain ID as a decimal integer e.g. `11155111` for Sepolia  |
+| `SAFEKIT_TEST_VERSION`    | Safe version to test e.g. `1.4.1`                          |
 
 ```bash
 SAFEKIT_TEST_CHAIN_ID=11155111 \
 SAFEKIT_TEST_VERSION=1.4.1 \
 SAFEKIT_TEST_RPC_URL=https://rpc.sepolia.org \
-SAFEKIT_TEST_ADMIN_KEY=<FUNDED WALLET PRIVATE KEY> \
-go test -tags integration -timeout 10m -v ./pkg/safe/...
+SAFEKIT_TEST_ADMIN_KEY=<FUNDED_WALLET_PRIVATE_KEY> \
+go test -tags integration -timeout 15m -v ./pkg/safe/...
+```
+
+### Testing distributed nonce coordination
+
+By default, the distributed nonce manager tests are skipped. To run them, you need
+a Redis instance and set `SAFEKIT_TEST_REDIS_URL` environment variable. Everything else stays the same:
+
+```bash
+SAFEKIT_TEST_CHAIN_ID=11155111 \
+SAFEKIT_TEST_VERSION=1.4.1 \
+SAFEKIT_TEST_RPC_URL=https://rpc.sepolia.org \
+SAFEKIT_TEST_ADMIN_KEY= \
+SAFEKIT_TEST_REDIS_URL=redis://localhost:6379 \
+go test -tags integration -timeout 15m -v ./pkg/safe/...
 ```
 
 ## Adding support for a new chain
@@ -135,17 +155,7 @@ Run the unit tests to confirm nothing broke:
 go test ./pkg/chain/...
 ```
 
-Then run an integration test against your chain to confirm Safe deployment
-works end to end. You will need a funded wallet on that chain:
-
-```bash
-SAFEKIT_TEST_CHAIN_ID=11155111 \
-SAFEKIT_TEST_VERSION=1.4.1 \
-SAFEKIT_TEST_RPC_URL=https://rpc.sepolia.org \
-SAFEKIT_TEST_ADMIN_KEY=<FUNDED WALLET PRIVATE KEY> \
-go test -tags integration -timeout 10m -v ./pkg/safe/...
-```
-
+Then [run an integration test](#running-integration-tests) against your chain to confirm Safe deployment works end to end.
 Include the transaction hash of a successful deployment in your pull request
 so we can verify on-chain.
 
@@ -250,16 +260,6 @@ that the proxy creation code starts with the expected EVM preamble.
 ```bash
 go test -v -race ./...
 ```
-
-## Pull request checklist
-
-When you open a pull request, please confirm:
-
-- [ ] Unit tests pass (`go test ./...`)
-- [ ] New code has tests
-- [ ] Godoc comments are added or updated
-- [ ] If adding a new version or chain, integration test transaction hashes
-  are included in the PR description
 
 ## License
 

@@ -80,7 +80,7 @@ func integrationEnvFromEnv(t *testing.T) *integrationEnv {
 	}
 	t.Cleanup(func() { s.Close() })
 
-	eth, err := ethclient.Dial(rpcURL)
+	eth, err := Dial(rpcURL)
 	if err != nil {
 		t.Fatalf("failed to dial RPC: %v", err)
 	}

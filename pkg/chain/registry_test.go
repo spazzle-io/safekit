@@ -12,18 +12,18 @@ func TestLookup_BuiltInChains(t *testing.T) {
 		want    string
 		isL2    bool
 	}{
-		{"ethereum", big.NewInt(1), "Ethereum Mainnet", false},
-		{"sepolia", big.NewInt(11155111), "Sepolia Testnet", false},
-		{"polygon", big.NewInt(137), "Polygon POS", true},
+		{"ethereum", big.NewInt(1), "Ethereum", false},
+		{"sepolia", big.NewInt(11155111), "Sepolia", false},
+		{"polygon", big.NewInt(137), "Polygon", true},
 		{"polygon zkevm", big.NewInt(1101), "Polygon zkEVM", true},
-		{"polygon amoy", big.NewInt(80002), "Polygon Amoy Testnet", true},
+		{"polygon amoy", big.NewInt(80002), "Polygon Amoy", true},
 		{"arbitrum one", big.NewInt(42161), "Arbitrum One", true},
 		{"arbitrum nova", big.NewInt(42170), "Arbitrum Nova", true},
-		{"arbitrum sepolia", big.NewInt(421614), "Arbitrum Sepolia Testnet", true},
+		{"arbitrum sepolia", big.NewInt(421614), "Arbitrum Sepolia", true},
 		{"base", big.NewInt(8453), "Base", true},
-		{"base sepolia", big.NewInt(84532), "Base Sepolia Testnet", true},
+		{"base sepolia", big.NewInt(84532), "Base Sepolia", true},
 		{"optimism", big.NewInt(10), "Optimism", true},
-		{"optimism sepolia", big.NewInt(11155420), "Optimism Sepolia Testnet", true},
+		{"optimism sepolia", big.NewInt(11155420), "Optimism Sepolia", true},
 		{"bnb smart chain", big.NewInt(56), "BNB Smart Chain", false},
 		{"bnb smart chain testnet", big.NewInt(97), "BNB Smart Chain Testnet", false},
 	}
