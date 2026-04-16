@@ -252,22 +252,23 @@ Check [Safe's supported networks](https://docs.safe.global/advanced/smart-accoun
 
 SafeKit ships with built-in support for the following chains:
 
-| Chain                   | ID          |
-|-------------------------|-------------|
-| Ethereum                | 1           |
-| Sepolia                 | 11155111    |
-| Polygon                 | 137         |
-| Polygon zkEVM           | 1101        |
-| Polygon Amoy            | 80002       |
-| Arbitrum One            | 42161       |
-| Arbitrum Nova           | 42170       |
-| Arbitrum Sepolia        | 421614      |
-| Base                    | 8453        |
-| Base Sepolia            | 84532       |
-| Optimism                | 10          |
-| Optimism Sepolia        | 11155420    |
-| BNB Smart Chain         | 56          |
-| BNB Smart Chain Testnet | 97          |
+| Chain                   | ID       |
+|-------------------------|----------|
+| Local (Anvil / Hardhat) | 31337    |
+| Ethereum                | 1        |
+| Sepolia                 | 11155111 |
+| Polygon                 | 137      |
+| Polygon zkEVM           | 1101     |
+| Polygon Amoy            | 80002    |
+| Arbitrum One            | 42161    |
+| Arbitrum Nova           | 42170    |
+| Arbitrum Sepolia        | 421614   |
+| Base                    | 8453     |
+| Base Sepolia            | 84532    |
+| Optimism                | 10       |
+| Optimism Sepolia        | 11155420 |
+| BNB Smart Chain         | 56       |
+| BNB Smart Chain Testnet | 97       |
 
 The full list is in `pkg/chain/known.go`. If your target chain is not listed, register it before calling `safe.New`:
 
