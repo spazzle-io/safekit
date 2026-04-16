@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/spazzle-io/safekit/compare/v1.2.0...v1.3.0) (2026-04-16)
+
+
+### Features
+
+* add local development chain (chain ID 31337) as a known chain ([#22](https://github.com/spazzle-io/safekit/issues/22)) ([3dd5c57](https://github.com/spazzle-io/safekit/commit/3dd5c57c83721a2ba4c93a7321e244eb0c5855f4))
+
 ## [1.2.0](https://github.com/spazzle-io/safekit/compare/v1.1.0...v1.2.0) (2026-04-15)
 
 
