@@ -2,6 +2,14 @@ package chain
 
 import "math/big"
 
+// Local
+
+var Local = &Chain{
+	ID:   big.NewInt(31337),
+	Name: "Local",
+	IsL2: false,
+}
+
 // Ethereum
 
 var Ethereum = &Chain{

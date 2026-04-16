@@ -14,6 +14,9 @@ var (
 
 func init() {
 	for _, c := range []*Chain{
+		// Local
+		Local,
+
 		// Ethereum
 		Ethereum,
 		Sepolia,
