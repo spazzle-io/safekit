@@ -141,14 +141,6 @@ var MyChain = &Chain{
 
 Register it in the `init()` function in `pkg/chain/registry.go`:
 
-```go
-func init() {
-    Register(Ethereum)
-    // ...
-    Register(MyChain)
-}
-```
-
 Run the unit tests to confirm nothing broke:
 
 ```bash
