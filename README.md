@@ -199,6 +199,9 @@ client, err := safe.New(safe.Options{
 })
 ```
 
+`Signer` is the wallet that pays for gas. For production workloads, prefer a signer backed by a hardware security
+module or secrets manager. If your private key is already in memory, use `signer.NewSignerFromHex`. If it is stored as an environment variable, use `signer.NewEnvSigner`.
+
 Use `safe.Dial` if you do not already have an `*ethclient.Client`:
 
 ```go
@@ -209,8 +212,20 @@ if err != nil {
 defer eth.Close()
 ```
 
-`Signer` is the wallet that pays for gas. For production workloads, prefer a signer backed by a hardware security
-module or secrets manager. If your private key is already in memory, use `signer.NewSignerFromHex` instead of `signer.NewEnvSigner`.
+If you are running a local fork of a known chain, call `chain.Fork` to register a chain as a fork of another.
+For example, when running [Anvil](https://www.getfoundry.sh/anvil) with chain ID `31337` that forked the Sepolia chain (`11155111`), you would configure your chain like so:
+
+```go
+c, err := chain.Lookup(chain.Local) // chain.Local returns a chain configured with ID `31337`
+if err != nil {
+    log.Fatal(err)
+}
+
+c, err = chain.Fork(c, chain.Ethereum) // register chain.Local as a fork of chain.Ethereum
+if err != nil {
+    log.Fatal(err)
+}
+```
 
 ## Testing
 
@@ -294,20 +309,6 @@ client, err := safe.New(safe.Options{
 Alternatively, if you want the chain included in SafeKit by default, open a pull request following these steps in [CONTRIBUTING.md](CONTRIBUTING.md#adding-support-for-a-new-chain).
 
 The chain must have Safe contracts deployed on it. Check the [Safe deployments registry](https://github.com/safe-global/safe-deployments) to confirm.
-
-If you are running a local fork of a known chain, set `ForksChainID` to tell SafeKit which chain's contract addresses to use.
-Transactions are signed with your local chain ID with no replay risk on the source chain.
-
-```go
-chain.Register(&chain.Chain{
-    ID:           big.NewInt(31337),
-    Name:         "local",
-    IsL2:         false,
-    ForksChainID: big.NewInt(11155111), // use Ethereum Sepolia's contract addresses
-})
-```
-
-This is the recommended setup for local development with Anvil or Hardhat.
 
 ## License
 
