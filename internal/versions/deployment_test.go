@@ -174,9 +174,11 @@ func TestBaseDeployment_ProxyFactory_ForksChainID(t *testing.T) {
 		Name: "local",
 		IsL2: false,
 	}
-	c = c.Fork(chain.Ethereum)
 
-	err := chain.Register(c)
+	c, err := chain.Fork(c, chain.Ethereum)
+	require.NoError(t, err)
+
+	err = chain.Register(c)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
@@ -202,12 +204,15 @@ func TestBaseDeployment_ProxyFactory_ForksChainID_UnknownSource(t *testing.T) {
 		Name: "local",
 		IsL2: false,
 	}
-	c.Fork(&chain.Chain{
+
+	c, err := chain.Fork(c, &chain.Chain{
 		ID:   big.NewInt(99999),
 		Name: "unknown",
 		IsL2: false,
 	})
-	err := chain.Register(c)
+	require.NoError(t, err)
+
+	err = chain.Register(c)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
@@ -227,9 +232,13 @@ func TestBaseDeployment_Singleton_ForksChainID(t *testing.T) {
 		Name: "local",
 		IsL2: false,
 	}
-	c = c.Fork(chain.Ethereum)
-	err := chain.Register(c)
+
+	c, err := chain.Fork(c, chain.Ethereum)
 	require.NoError(t, err)
+
+	err = chain.Register(c)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
 	})
@@ -289,9 +298,13 @@ func TestBaseDeployment_ForksChainID_CacheShared(t *testing.T) {
 		Name: "local",
 		IsL2: false,
 	}
-	c = c.Fork(chain.Ethereum)
-	err := chain.Register(c)
+
+	c, err := chain.Fork(c, chain.Ethereum)
 	require.NoError(t, err)
+
+	err = chain.Register(c)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
 	})

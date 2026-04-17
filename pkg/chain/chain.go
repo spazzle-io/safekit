@@ -25,22 +25,6 @@ type Chain struct {
 	forksChainID *big.Int
 }
 
-// Fork returns a copy of c configured as a fork of source.
-// Use this when running a local development chain that forks a known network.
-//
-// Example: an Anvil instance forking Sepolia:
-//
-//	local, _ := chain.Lookup(big.NewInt(31337))
-//	client, err := safe.New(safe.Options{
-//	    Chain: local.Fork(chain.EthereumSepolia),
-//	    ...
-//	})
-func (c *Chain) Fork(source *Chain) *Chain {
-	cpy := *c
-	cpy.forksChainID = source.ID
-	return &cpy
-}
-
 // ForksChainID returns the chain ID whose contract addresses this chain uses for Safe deployments,
 // or nil if no fork is configured.
 func (c *Chain) ForksChainID() *big.Int {
