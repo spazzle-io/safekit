@@ -3,6 +3,9 @@ package versions
 import (
 	"math/big"
 	"testing"
+
+	"github.com/spazzle-io/safekit/pkg/chain"
+	"github.com/stretchr/testify/require"
 )
 
 const validL2JSON = `{
@@ -162,6 +165,143 @@ func TestBaseDeployment_Cache_ConcurrentAccess(t *testing.T) {
 		if err := <-results; err != nil {
 			t.Errorf("unexpected error under concurrent access: %v", err)
 		}
+	}
+}
+
+func TestBaseDeployment_ProxyFactory_ForksChainID(t *testing.T) {
+	err := chain.Register(&chain.Chain{
+		ID:           big.NewInt(31337),
+		Name:         "local",
+		IsL2:         false,
+		ForksChainID: big.NewInt(1),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		chain.Deregister(big.NewInt(31337))
+	})
+
+	d := newTestDeployment()
+
+	// chain 31337 has no contracts but forks chain 1. Should get chain 1's address
+	got, err := d.ProxyFactory(big.NewInt(31337))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+	if got.Address.Hex() != want {
+		t.Errorf("got address %s, want %s", got.Address.Hex(), want)
+	}
+}
+
+func TestBaseDeployment_ProxyFactory_ForksChainID_UnknownSource(t *testing.T) {
+	err := chain.Register(&chain.Chain{
+		ID:           big.NewInt(31337),
+		Name:         "local",
+		IsL2:         false,
+		ForksChainID: big.NewInt(99999), // unknown chain with no contracts
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		chain.Deregister(big.NewInt(31337))
+	})
+
+	d := newTestDeployment()
+
+	_, err = d.ProxyFactory(big.NewInt(31337))
+	if err == nil {
+		t.Fatal("want error for unknown source chain, got nil")
+	}
+}
+
+func TestBaseDeployment_Singleton_ForksChainID(t *testing.T) {
+	err := chain.Register(&chain.Chain{
+		ID:           big.NewInt(31337),
+		Name:         "local",
+		IsL2:         false,
+		ForksChainID: big.NewInt(1),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		chain.Deregister(big.NewInt(31337))
+	})
+
+	d := newTestDeployment()
+
+	t.Run("l1", func(t *testing.T) {
+		got, err := d.Singleton(big.NewInt(31337), false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		want, err := d.Singleton(big.NewInt(1), false)
+		if err != nil {
+			t.Fatalf("unexpected error getting chain 1 singleton: %v", err)
+		}
+
+		if got.Address != want.Address {
+			t.Errorf("got %s, want %s", got.Address.Hex(), want.Address.Hex())
+		}
+	})
+
+	t.Run("l2", func(t *testing.T) {
+		got, err := d.Singleton(big.NewInt(31337), true)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		want, err := d.Singleton(big.NewInt(1), true)
+		if err != nil {
+			t.Fatalf("unexpected error getting chain 1 l2 singleton: %v", err)
+		}
+
+		if got.Address != want.Address {
+			t.Errorf("got %s, want %s", got.Address.Hex(), want.Address.Hex())
+		}
+	})
+}
+
+func TestBaseDeployment_NoForksChainID(t *testing.T) {
+	d := newTestDeployment()
+
+	got, err := d.ProxyFactory(big.NewInt(1))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+	if got.Address.Hex() != want {
+		t.Errorf("got address %s, want %s", got.Address.Hex(), want)
+	}
+}
+
+func TestBaseDeployment_ForksChainID_CacheShared(t *testing.T) {
+	err := chain.Register(&chain.Chain{
+		ID:           big.NewInt(31337),
+		Name:         "local",
+		IsL2:         false,
+		ForksChainID: big.NewInt(1),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		chain.Deregister(big.NewInt(31337))
+	})
+
+	d := newTestDeployment()
+
+	source, err := d.ProxyFactory(big.NewInt(1))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	forked, err := d.ProxyFactory(big.NewInt(31337))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if source.Address != forked.Address {
+		t.Errorf("expected same cached entry: source %s, forked %s",
+			source.Address.Hex(), forked.Address.Hex())
 	}
 }
 

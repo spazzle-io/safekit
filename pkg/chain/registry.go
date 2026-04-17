@@ -95,3 +95,12 @@ func Lookup(id *big.Int) (*Chain, error) {
 
 	return c, nil
 }
+
+// Deregister removes a chain from the registry by its chain ID.
+// It is a no-op if the chain is not registered.
+func Deregister(chainID *big.Int) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	delete(registry, chainID.String())
+}
