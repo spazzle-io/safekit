@@ -4,6 +4,7 @@ package safe
 
 import (
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/redis/go-redis/v9"
@@ -18,6 +19,24 @@ import (
 	"time"
 )
 
+// Integration tests require on the following:
+//
+// Required env vars:
+//
+//	SAFEKIT_TEST_RPC_URL   - RPC endpoint for the test network
+//	SAFEKIT_TEST_ADMIN_KEY - hex-encoded private key for the admin wallet
+//	SAFEKIT_TEST_CHAIN_ID  - chain ID as a decimal integer
+//	SAFEKIT_TEST_VERSION   - Safe version e.g. "1.4.1"
+//
+// Optional env vars:
+//
+//  SAFEKIT_TEST_REDIS_URL - Redis connection URL. To be set when testing the redis nonce manager.
+
+var (
+	sharedEnv    *integrationEnv
+	sharedClient Client
+)
+
 type integrationEnv struct {
 	eth     *ethclient.Client
 	signer  signer.Signer
@@ -25,78 +44,102 @@ type integrationEnv struct {
 	version version.Version
 }
 
-// integrationClientFromEnv builds a Client from environment variables.
-//
-// Required env vars:
-//
-//	SAFEKIT_TEST_RPC_URL   — RPC endpoint for the test network
-//	SAFEKIT_TEST_ADMIN_KEY — hex-encoded private key for the admin wallet
-//	SAFEKIT_TEST_CHAIN_ID  — chain ID as a decimal integer
-//	SAFEKIT_TEST_VERSION   — Safe version e.g. "1.4.1"
-func integrationClientFromEnv(t *testing.T) Client {
-	t.Helper()
-
-	env := integrationEnvFromEnv(t)
-
-	client, err := New(Options{
-		Chain:         env.chain,
-		Client:        env.eth,
-		Signer:        env.signer,
-		Version:       env.version,
-		DeployTimeout: 2 * time.Minute,
-	})
-	if err != nil {
-		if isVersionNotOnChain(err) {
-			t.Skipf("version %s not deployed on chain %s. Skipping", env.version, env.chain.Name)
-		}
-		t.Fatalf("failed to create client: %v", err)
+func TestMain(m *testing.M) {
+	if err := setupSharedEnv(); err != nil {
+		fmt.Println("skipping integration tests:", err)
+		os.Exit(0)
 	}
 
-	t.Cleanup(func() { client.Close() })
-	return client
+	code := m.Run()
+
+	teardownSharedEnv()
+	os.Exit(code)
 }
 
-func integrationEnvFromEnv(t *testing.T) *integrationEnv {
-	t.Helper()
+func setupSharedEnv() error {
+	rpcURL := os.Getenv("SAFEKIT_TEST_RPC_URL")
+	adminKey := os.Getenv("SAFEKIT_TEST_ADMIN_KEY")
+	chainIDStr := os.Getenv("SAFEKIT_TEST_CHAIN_ID")
+	versionStr := os.Getenv("SAFEKIT_TEST_VERSION")
 
-	rpcURL := requireEnv(t, "SAFEKIT_TEST_RPC_URL")
-	adminKey := requireEnv(t, "SAFEKIT_TEST_ADMIN_KEY")
-	chainIDStr := requireEnv(t, "SAFEKIT_TEST_CHAIN_ID")
-	versionStr := requireEnv(t, "SAFEKIT_TEST_VERSION")
+	if rpcURL == "" || adminKey == "" || chainIDStr == "" || versionStr == "" {
+		return fmt.Errorf("one or more required env vars not set")
+	}
 
 	chainIDInt, err := strconv.ParseInt(chainIDStr, 10, 64)
 	if err != nil {
-		t.Fatalf("invalid SAFEKIT_TEST_CHAIN_ID %q: %v", chainIDStr, err)
+		return fmt.Errorf("invalid SAFEKIT_TEST_CHAIN_ID %q: %w", chainIDStr, err)
 	}
 
 	c, err := chain.Lookup(big.NewInt(chainIDInt))
 	if err != nil {
-		t.Fatalf("unsupported chain ID %d: %v", chainIDInt, err)
+		return fmt.Errorf("unsupported chain ID %d: %w", chainIDInt, err)
 	}
 
 	s, err := signer.NewSignerFromHex(adminKey)
 	if err != nil {
-		t.Fatalf("failed to create signer: %v", err)
+		return fmt.Errorf("failed to create signer: %w", err)
 	}
-	t.Cleanup(func() { s.Close() })
 
 	eth, err := Dial(rpcURL)
 	if err != nil {
-		t.Fatalf("failed to dial RPC: %v", err)
+		s.Close()
+		return fmt.Errorf("failed to dial RPC: %w", err)
 	}
-	t.Cleanup(func() { eth.Close() })
 
-	return &integrationEnv{
+	sharedEnv = &integrationEnv{
 		eth:     eth,
 		signer:  s,
 		chain:   c,
 		version: version.Version(versionStr),
 	}
+
+	client, err := New(Options{
+		Chain:   sharedEnv.chain,
+		Client:  sharedEnv.eth,
+		Signer:  sharedEnv.signer,
+		Version: sharedEnv.version,
+	})
+	if err != nil {
+		teardownSharedEnv()
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+
+	sharedClient = client
+
+	return nil
 }
 
-// integrationRedisClientFromEnv builds a Client using a Redis-backed nonce manager.
-// Requires SAFEKIT_TEST_REDIS_URL in addition to the standard env vars.
-// Skips the test if SAFEKIT_TEST_REDIS_URL is not set.
+func teardownSharedEnv() {
+	if sharedClient != nil {
+		sharedClient.Close()
+	}
+
+	if sharedEnv != nil {
+		sharedEnv.eth.Close()
+	}
+}
+
+func integrationClientFromEnv(t *testing.T) Client {
+	t.Helper()
+
+	if sharedClient == nil {
+		t.Skip("shared integration client not initialised")
+	}
+
+	return sharedClient
+}
+
+func integrationEnvFromEnv(t *testing.T) *integrationEnv {
+	t.Helper()
+
+	if sharedEnv == nil {
+		t.Skip("shared integration env not initialised")
+	}
+
+	return sharedEnv
+}
+
 func integrationRedisClientFromEnv(t *testing.T, env *integrationEnv, instanceID string) Client {
 	t.Helper()
 
