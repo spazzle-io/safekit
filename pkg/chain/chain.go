@@ -18,9 +18,31 @@ type Chain struct {
 	// deployment. L2 chains use SafeL2.sol. Others use Safe.sol.
 	IsL2 bool
 
-	// ForksChainID is the chain ID whose Safe contract addresses should be used for this chain.
+	// forksChainID is the chain ID whose Safe contract addresses should be used for this chain.
 	// This is useful for local development chains that fork a known network.
 	//
 	// If nil, the chain's own ID is used for contract lookups.
-	ForksChainID *big.Int
+	forksChainID *big.Int
+}
+
+// Fork returns a copy of c configured as a fork of source.
+// Use this when running a local development chain that forks a known network.
+//
+// Example: an Anvil instance forking Sepolia:
+//
+//	local, _ := chain.Lookup(big.NewInt(31337))
+//	client, err := safe.New(safe.Options{
+//	    Chain: local.Fork(chain.EthereumSepolia),
+//	    ...
+//	})
+func (c *Chain) Fork(source *Chain) *Chain {
+	cpy := *c
+	cpy.forksChainID = source.ID
+	return &cpy
+}
+
+// ForksChainID returns the chain ID whose contract addresses this chain uses for Safe deployments,
+// or nil if no fork is configured.
+func (c *Chain) ForksChainID() *big.Int {
+	return c.forksChainID
 }

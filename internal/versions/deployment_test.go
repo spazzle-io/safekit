@@ -169,12 +169,14 @@ func TestBaseDeployment_Cache_ConcurrentAccess(t *testing.T) {
 }
 
 func TestBaseDeployment_ProxyFactory_ForksChainID(t *testing.T) {
-	err := chain.Register(&chain.Chain{
-		ID:           big.NewInt(31337),
-		Name:         "local",
-		IsL2:         false,
-		ForksChainID: big.NewInt(1),
-	})
+	c := &chain.Chain{
+		ID:   big.NewInt(31337),
+		Name: "local",
+		IsL2: false,
+	}
+	c = c.Fork(chain.Ethereum)
+
+	err := chain.Register(c)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
@@ -195,12 +197,17 @@ func TestBaseDeployment_ProxyFactory_ForksChainID(t *testing.T) {
 }
 
 func TestBaseDeployment_ProxyFactory_ForksChainID_UnknownSource(t *testing.T) {
-	err := chain.Register(&chain.Chain{
-		ID:           big.NewInt(31337),
-		Name:         "local",
-		IsL2:         false,
-		ForksChainID: big.NewInt(99999), // unknown chain with no contracts
+	c := &chain.Chain{
+		ID:   big.NewInt(31337),
+		Name: "local",
+		IsL2: false,
+	}
+	c.Fork(&chain.Chain{
+		ID:   big.NewInt(99999),
+		Name: "unknown",
+		IsL2: false,
 	})
+	err := chain.Register(c)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
@@ -215,12 +222,13 @@ func TestBaseDeployment_ProxyFactory_ForksChainID_UnknownSource(t *testing.T) {
 }
 
 func TestBaseDeployment_Singleton_ForksChainID(t *testing.T) {
-	err := chain.Register(&chain.Chain{
-		ID:           big.NewInt(31337),
-		Name:         "local",
-		IsL2:         false,
-		ForksChainID: big.NewInt(1),
-	})
+	c := &chain.Chain{
+		ID:   big.NewInt(31337),
+		Name: "local",
+		IsL2: false,
+	}
+	c = c.Fork(chain.Ethereum)
+	err := chain.Register(c)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))
@@ -276,12 +284,13 @@ func TestBaseDeployment_NoForksChainID(t *testing.T) {
 }
 
 func TestBaseDeployment_ForksChainID_CacheShared(t *testing.T) {
-	err := chain.Register(&chain.Chain{
-		ID:           big.NewInt(31337),
-		Name:         "local",
-		IsL2:         false,
-		ForksChainID: big.NewInt(1),
-	})
+	c := &chain.Chain{
+		ID:   big.NewInt(31337),
+		Name: "local",
+		IsL2: false,
+	}
+	c = c.Fork(chain.Ethereum)
+	err := chain.Register(c)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		chain.Deregister(big.NewInt(31337))

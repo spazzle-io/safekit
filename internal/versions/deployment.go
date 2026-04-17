@@ -62,11 +62,15 @@ func (d *BaseDeployment) ProxyCreationCode() []byte {
 
 func (d *BaseDeployment) resolveChainID(chainID *big.Int) *big.Int {
 	c, err := chain.Lookup(chainID)
-	if err != nil || c.ForksChainID == nil {
+	if err != nil {
 		return chainID
 	}
 
-	return c.ForksChainID
+	if c.ForksChainID() != nil {
+		return c.ForksChainID()
+	}
+
+	return c.ID
 }
 
 func (d *BaseDeployment) loadCached(
