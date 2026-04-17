@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	defaultDeployTimeout = 2 * time.Minute
-	defaultGasMultiplier = 1.2
+	defaultGasMultiplier       = 1.2
+	defaultDeployTimeout       = 2 * time.Minute
+	defaultReceiptPollInterval = 2 * time.Second
 )
 
 // Options configures a Safe client.
@@ -54,6 +55,10 @@ type Options struct {
 	// GasMultiplier is applied to the estimated gas to give headroom.
 	// Defaults to 1.2. Increase if deployments fail with out-of-gas errors on congested chains.
 	GasMultiplier float64
+
+	// ReceiptPollInterval is how often safekit checks whether a submitted transaction has been mined.
+	// Defaults to 2 seconds. Increase if fast deployment confirmation is not required to reduce RPC usage.
+	ReceiptPollInterval time.Duration
 }
 
 func (o *Options) validate() error {
@@ -88,4 +93,11 @@ func (o *Options) gasMultiplier() float64 {
 		return defaultGasMultiplier
 	}
 	return o.GasMultiplier
+}
+
+func (o *Options) receiptPollInterval() time.Duration {
+	if o.ReceiptPollInterval <= 0 {
+		return defaultReceiptPollInterval
+	}
+	return o.ReceiptPollInterval
 }

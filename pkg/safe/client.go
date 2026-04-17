@@ -155,7 +155,7 @@ func New(opts Options) (Client, error) {
 
 	return &client{
 		chain:      opts.Chain,
-		txManager:  txmanager.New(opts.Client, opts.Signer, nm),
+		txManager:  txmanager.New(opts.Client, opts.Signer, nm, opts.receiptPollInterval()),
 		deployment: deployment,
 		opts:       &opts,
 	}, nil

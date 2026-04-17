@@ -20,13 +20,19 @@ import (
 	"github.com/spazzle-io/safekit/pkg/signer"
 )
 
-// defaultDeployTimeout is how long Deploy will wait for a transaction to be mined before giving up.
-const defaultDeployTimeout = 2 * time.Minute
+const (
+	// defaultDeployTimeout is how long Deploy will wait for a transaction to be mined before giving up.
+	defaultDeployTimeout = 2 * time.Minute
+
+	// defaultReceiptPollInterval is how often waitForReceipt polls for a transaction receipt.
+	defaultReceiptPollInterval = 2 * time.Second
+)
 
 type TxManager struct {
-	client       *ethclient.Client
-	signer       signer.Signer
-	nonceManager pkgnonce.Manager
+	client              *ethclient.Client
+	signer              signer.Signer
+	nonceManager        pkgnonce.Manager
+	receiptPollInterval time.Duration
 }
 
 // Result is returned after a successful Safe deployment.
@@ -68,11 +74,21 @@ func (o *Options) timeout() time.Duration {
 	return o.Timeout
 }
 
-func New(client *ethclient.Client, signer signer.Signer, nm pkgnonce.Manager) *TxManager {
+func New(
+	client *ethclient.Client,
+	signer signer.Signer,
+	nm pkgnonce.Manager,
+	receiptPollInterval time.Duration,
+) *TxManager {
+	if receiptPollInterval <= 0 {
+		receiptPollInterval = defaultReceiptPollInterval
+	}
+
 	return &TxManager{
-		client:       client,
-		signer:       signer,
-		nonceManager: nm,
+		client:              client,
+		signer:              signer,
+		nonceManager:        nm,
+		receiptPollInterval: receiptPollInterval,
 	}
 }
 
@@ -106,7 +122,7 @@ func (t *TxManager) Submit(
 		return common.Hash{}, fmt.Errorf("failed to acquire nonce slot: %w", err)
 	}
 
-	if deployed, checkErr := isDeployed(ctx, t.client, predictedAddr); checkErr == nil && deployed {
+	if deployed, checkErr := t.IsDeployed(ctx, predictedAddr); checkErr == nil && deployed {
 		slot.Reuse()
 		return common.Hash{}, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
 	}
@@ -171,7 +187,7 @@ func (t *TxManager) Wait(
 		return nil, fmt.Errorf("address prediction failed: %w", err)
 	}
 
-	receipt, err := waitForReceipt(ctx, t.client, txHash)
+	receipt, err := t.waitForReceipt(ctx, txHash)
 	if err != nil {
 		return nil, err
 	}
@@ -231,33 +247,35 @@ func (t *TxManager) Deploy(
 	return result, nil
 }
 
-func (t *TxManager) CodeAt(ctx context.Context, addr common.Address) ([]byte, error) {
-	return t.client.CodeAt(ctx, addr, nil)
+func (t *TxManager) IsDeployed(ctx context.Context, addr common.Address) (bool, error) {
+	code, err := t.client.CodeAt(ctx, addr, nil)
+	if err != nil {
+		return false, err
+	}
+
+	return len(code) > 0, nil
 }
 
 func (t *TxManager) Close() {
 	t.signer.Close()
 }
 
-func waitForReceipt(
+func (t *TxManager) waitForReceipt(
 	ctx context.Context,
-	client *ethclient.Client,
 	txHash common.Hash,
 ) (*types.Receipt, error) {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(t.receiptPollInterval)
 	defer ticker.Stop()
 
 	for {
-		receipt, err := client.TransactionReceipt(ctx, txHash)
-		if err == nil {
-			return receipt, nil
-		}
-
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			// continue polling
+			receipt, err := t.client.TransactionReceipt(ctx, txHash)
+			if err == nil {
+				return receipt, nil
+			}
 		}
 	}
 }
@@ -343,15 +361,6 @@ func buildTxWithNonce(
 		Value:     big.NewInt(0),
 		Data:      data,
 	})
-}
-
-func isDeployed(ctx context.Context, client *ethclient.Client, addr common.Address) (bool, error) {
-	code, err := client.CodeAt(ctx, addr, nil)
-	if err != nil {
-		return false, err
-	}
-
-	return len(code) > 0, nil
 }
 
 func extractDeployedAddress(

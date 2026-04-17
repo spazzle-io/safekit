@@ -188,13 +188,14 @@ All clients pointing at the same Redis instance and using the same signer on the
 
 ```go
 client, err := safe.New(safe.Options{
-    Chain:         chain.Base,
-    Client:        eth,
-    Signer:        s,
-    Version:       version.V141,
-    NonceManager:  nm,              // optional. defaults to a local in-memory nonce manager
-    DeployTimeout: 3 * time.Minute, // optional. defaults to 2 minutes
-    GasMultiplier: 1.3,             // optional. defaults to 1.2
+    Chain:               chain.Base,
+    Client:              eth,
+    Signer:              s,
+    Version:             version.V141,
+    NonceManager:        nm,              // optional. defaults to a local in-memory nonce manager
+    DeployTimeout:       3 * time.Minute, // optional. defaults to 2 minutes
+    GasMultiplier:       1.3,             // optional. defaults to 1.2
+    ReceiptPollInterval: 10 * time.Second // optional. defaults to 2 seconds.
 })
 ```
 
