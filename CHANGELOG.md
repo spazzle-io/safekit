@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/spazzle-io/safekit/compare/v1.3.0...v1.4.0) (2026-04-18)
+
+
+### Features
+
+* support forking of known chains ([#24](https://github.com/spazzle-io/safekit/issues/24)) ([03421aa](https://github.com/spazzle-io/safekit/commit/03421aa241c27f1f2bf3a894ff48099007aa86b7))
+
+
+### Bug Fixes
+
+* use same safe.Client across all integration tests to prevent nonce re-seeding ([#25](https://github.com/spazzle-io/safekit/issues/25)) ([d9913c3](https://github.com/spazzle-io/safekit/commit/d9913c38f3349b602fceea54b8b43d6439187e9a))
+
 ## [1.3.0](https://github.com/spazzle-io/safekit/compare/v1.2.0...v1.3.0) (2026-04-16)
 
 
