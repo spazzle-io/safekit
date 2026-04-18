@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <em>Go library for deploying and predicting Gnosis Safe multisig wallet addresses on any EVM chain.</em>
+  <em>Go library for predicting and deploying Gnosis Safe multisig wallets on any EVM chain.</em>
 </p>
 
 <p align="center">
@@ -112,7 +112,7 @@ func main() {
 
 ## Predicting addresses
 
-The same owners, threshold, and salt always produces the same address on the same chain and Safe version. This lets you know the wallet address before it exists on-chain, so you can fund it in advance and deploy later.
+The same owners, threshold, and salt always produce the same address on the same chain and Safe version. This lets you know the wallet address before it exists on-chain, so you can fund it in advance and deploy later.
 
 ```go
 // predict and store the address before deploying
@@ -184,29 +184,48 @@ All clients pointing at the same Redis instance and using the same signer on the
 
 ## Configuration
 
+`safe.New` accepts an `Options` struct:
+
 ```go
 client, err := safe.New(safe.Options{
-    Chain:         chain.Base,
-    Client:        eth,             // required
-    Signer:        s,               // required
-    Version:       version.V141,    // required
-    NonceManager:  nm,              // optional. defaults to local in-memory nonce manager
-    DeployTimeout: 3 * time.Minute, // optional. defaults to 2 minutes
-    GasMultiplier: 1.3,             // optional. defaults to 1.2
+    Chain:               chain.Base,
+    Client:              eth,
+    Signer:              s,
+    Version:             version.V141,
+    NonceManager:        nm,              // optional. defaults to a local in-memory nonce manager
+    DeployTimeout:       3 * time.Minute, // optional. defaults to 2 minutes
+    GasMultiplier:       1.3,             // optional. defaults to 1.2
+    ReceiptPollInterval: 10 * time.Second // optional. defaults to 2 seconds.
 })
 ```
 
-`safe.Dial` is a convenience wrapper around `ethclient.Dial`:
+`Signer` is the wallet that pays for gas. For production workloads, prefer a signer backed by a hardware security
+module or secrets manager. If your private key is already in memory, use `signer.NewSignerFromHex`. If it is stored as an environment variable, use `signer.NewEnvSigner`.
+
+Use `safe.Dial` if you do not already have an `*ethclient.Client`:
 
 ```go
-eth, err := safe.Dial(os.Getenv("RPC_URL"))
+eth, err := safe.Dial("RPC_URL")
 if err != nil {
     log.Fatal(err)
 }
 defer eth.Close()
 ```
 
-For production workloads, prefer a signer backed by a hardware security module or secrets manager. If your private key is already in memory, use `signer.NewSignerFromHex` instead of `signer.NewEnvSigner`.
+If you are running a local fork of a known chain, call `chain.Fork` to register a chain as a fork of another.
+For example, when running [Anvil](https://www.getfoundry.sh/anvil) with chain ID `31337` that forked the Sepolia chain (`11155111`), you would configure your chain like so:
+
+```go
+c, err := chain.Lookup(chain.Local) // chain.Local returns a chain configured with ID `31337`
+if err != nil {
+    log.Fatal(err)
+}
+
+c, err = chain.Fork(c, chain.Ethereum) // register chain.Local as a fork of chain.Ethereum
+if err != nil {
+    log.Fatal(err)
+}
+```
 
 ## Testing
 
@@ -287,7 +306,7 @@ client, err := safe.New(safe.Options{
 })
 ```
 
-Alternatively, if you want the chain included in SafeKit by default, open a pull request following the steps in [CONTRIBUTING.md](CONTRIBUTING.md#adding-support-for-a-new-chain).
+Alternatively, if you want the chain included in SafeKit by default, open a pull request following these steps in [CONTRIBUTING.md](CONTRIBUTING.md#adding-support-for-a-new-chain).
 
 The chain must have Safe contracts deployed on it. Check the [Safe deployments registry](https://github.com/safe-global/safe-deployments) to confirm.
 

@@ -95,3 +95,27 @@ func Lookup(id *big.Int) (*Chain, error) {
 
 	return c, nil
 }
+
+// Fork registers c as a fork of source. Safe contract addresses are resolved from source
+// while all other chain properties remain those of c.
+//
+// Use this when running a local development chain that forks a known network.
+func Fork(c *Chain, source *Chain) (*Chain, error) {
+	forked := *c
+	forked.forksChainID = source.ID
+
+	if err := Register(&forked); err != nil {
+		return nil, err
+	}
+
+	return &forked, nil
+}
+
+// Deregister removes a chain from the registry by its chain ID.
+// It is a no-op if the chain is not registered.
+func Deregister(chainID *big.Int) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	delete(registry, chainID.String())
+}

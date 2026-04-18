@@ -3,6 +3,8 @@ package versions
 import (
 	"math/big"
 	"sync"
+
+	"github.com/spazzle-io/safekit/pkg/chain"
 )
 
 // BaseDeployment implements the Deployment interface for a specific Safe version.
@@ -44,18 +46,31 @@ func (d *BaseDeployment) Version() Version {
 }
 
 func (d *BaseDeployment) ProxyFactory(chainID *big.Int) (*ParsedDeployment, error) {
-	return d.loadCached(d.factory, d.proxyFactoryJSON, chainID)
+	return d.loadCached(d.factory, d.proxyFactoryJSON, d.resolveChainID(chainID))
 }
 
 func (d *BaseDeployment) Singleton(chainID *big.Int, isL2 bool) (*ParsedDeployment, error) {
 	if isL2 {
-		return d.loadCached(d.safeL2, d.safeL2JSON, chainID)
+		return d.loadCached(d.safeL2, d.safeL2JSON, d.resolveChainID(chainID))
 	}
-	return d.loadCached(d.safe, d.safeJSON, chainID)
+	return d.loadCached(d.safe, d.safeJSON, d.resolveChainID(chainID))
 }
 
 func (d *BaseDeployment) ProxyCreationCode() []byte {
 	return d.proxyCreationCode
+}
+
+func (d *BaseDeployment) resolveChainID(chainID *big.Int) *big.Int {
+	c, err := chain.Lookup(chainID)
+	if err != nil {
+		return chainID
+	}
+
+	if c.ForksChainID() != nil {
+		return c.ForksChainID()
+	}
+
+	return c.ID
 }
 
 func (d *BaseDeployment) loadCached(

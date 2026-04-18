@@ -36,7 +36,7 @@ func newTestClient(t *testing.T) *client {
 
 	return &client{
 		chain:      chain.Ethereum,
-		txManager:  txmanager.New(nil, signer.NewMockSigner(0), nm),
+		txManager:  txmanager.New(nil, signer.NewMockSigner(0), nm, defaultReceiptPollInterval),
 		deployment: deployment,
 		opts:       &Options{},
 	}

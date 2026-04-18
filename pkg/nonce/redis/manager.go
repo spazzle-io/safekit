@@ -43,7 +43,7 @@ type Options struct {
 	// This is a safety net against crashed workers. Defaults to 30s.
 	LockTTL time.Duration
 
-	// PollInterval is how often Acquire retries the lock while waiting. Defaults to 200ms.
+	// PollInterval is how often a safe.Client instance will attempt to acquire the lock while waiting. Defaults to 200ms.
 	PollInterval time.Duration
 
 	// StaleNonceDelay is how long to wait before re-fetching the pending nonce from the chain after a failed broadcast.

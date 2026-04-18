@@ -2,7 +2,6 @@ package safe
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -36,10 +35,5 @@ func (c *client) PredictAddress(
 }
 
 func (c *client) IsDeployed(ctx context.Context, addr common.Address) (bool, error) {
-	code, err := c.txManager.CodeAt(ctx, addr)
-	if err != nil {
-		return false, fmt.Errorf("failed to check deployment status: %w", err)
-	}
-
-	return len(code) > 0, nil
+	return c.txManager.IsDeployed(ctx, addr)
 }

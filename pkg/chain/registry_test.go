@@ -3,6 +3,8 @@ package chain
 import (
 	"math/big"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLookup_BuiltInChains(t *testing.T) {
@@ -124,4 +126,18 @@ func TestRegister_InvalidInputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFork(t *testing.T) {
+	local := Local
+	source := Polygon
+
+	c, err := Fork(local, source)
+	require.NoError(t, err)
+
+	require.Equal(t, big.NewInt(137), c.ForksChainID())
+
+	require.Equal(t, big.NewInt(31337), c.ID)
+	require.Equal(t, "Local", c.Name)
+	require.Equal(t, false, c.IsL2)
 }

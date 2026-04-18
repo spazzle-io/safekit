@@ -17,4 +17,16 @@ type Chain struct {
 	// IsL2 determines which Safe singleton variant gets used during
 	// deployment. L2 chains use SafeL2.sol. Others use Safe.sol.
 	IsL2 bool
+
+	// forksChainID is the chain ID whose Safe contract addresses should be used for this chain.
+	// This is useful for local development chains that fork a known network.
+	//
+	// If nil, the chain's own ID is used for contract lookups.
+	forksChainID *big.Int
+}
+
+// ForksChainID returns the chain ID whose contract addresses this chain uses for Safe deployments,
+// or nil if no fork is configured.
+func (c *Chain) ForksChainID() *big.Int {
+	return c.forksChainID
 }
