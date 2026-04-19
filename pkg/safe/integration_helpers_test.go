@@ -154,8 +154,9 @@ func integrationRedisClientFromEnv(t *testing.T, env *integrationEnv, instanceID
 	t.Cleanup(func() { _ = rdb.Close() })
 
 	nm, err := nonceredis.NewNonceManager(nonceredis.Options{
-		Redis:      rdb,
-		InstanceID: instanceID,
+		Redis:           rdb,
+		InstanceID:      instanceID,
+		StaleNonceDelay: staleNonceDelay(env.chain),
 	})
 	if err != nil {
 		t.Fatalf("failed to create redis nonce manager: %v", err)
@@ -178,6 +179,19 @@ func integrationRedisClientFromEnv(t *testing.T, env *integrationEnv, instanceID
 
 	t.Cleanup(func() { client.Close() })
 	return client
+}
+
+func staleNonceDelay(chain *chain.Chain) time.Duration {
+	d := 500 * time.Millisecond
+
+	if chain.ID == big.NewInt(84532) {
+		d = 1 * time.Second
+	}
+	if chain.ID == big.NewInt(11155111) {
+		d = 2 * time.Second
+	}
+
+	return d
 }
 
 // requireEnv returns the value of the given environment variable, skipping the test if it is not set.
