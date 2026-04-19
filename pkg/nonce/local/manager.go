@@ -103,6 +103,11 @@ func (m *NonceManager) Acquire(ctx context.Context) (uint64, nonce.Slot, error) 
 	return n, &slot{manager: m}, nil
 }
 
+// Reset is a no-op for the local in-memory NonceManager.
+func (m *NonceManager) Reset(_ context.Context) error {
+	return nil
+}
+
 // nextNonce returns the next nonce to use. If the nonce is dirty it waits StaleNonceDelay then re-fetches
 // from the chain. Must be called while holding the inflight slot.
 func (m *NonceManager) nextNonce(ctx context.Context) (uint64, error) {

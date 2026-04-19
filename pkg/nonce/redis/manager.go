@@ -146,6 +146,15 @@ func (m *NonceManager) Acquire(ctx context.Context) (uint64, pkgnonce.Slot, erro
 	return n, &slot{manager: m}, nil
 }
 
+// Reset deletes the distributed nonce counter from Redis.
+// It must be called before any NonceManager instance for this chain and address calls Acquire.
+// Intended for local development when the underlying chain has been reset (e.g. restarting an Anvil fork)
+// and the Redis counter no longer reflects the chain's actual nonce state.
+// Never call this in production.
+func (m *NonceManager) Reset(ctx context.Context) error {
+	return m.rdb.Del(ctx, m.counterKey()).Err()
+}
+
 func (m *NonceManager) lockKey() string {
 	return fmt.Sprintf("safekit:nonce:%s:%s:lock", m.chainID.String(), strings.ToLower(m.address.Hex()))
 }

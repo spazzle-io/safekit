@@ -1,6 +1,8 @@
 package nonce
 
-import "context"
+import (
+	"context"
+)
 
 // Slot represents an acquired nonce slot. The caller must invoke exactly one of Commit, Reuse, or Reclaim after
 // every successful Acquire.
@@ -22,4 +24,13 @@ type Slot interface {
 type Manager interface {
 	// Acquire blocks until a nonce slot is available, returning the next nonce and a Slot the caller must resolve exactly once.
 	Acquire(ctx context.Context) (nonce uint64, slot Slot, err error)
+
+	// Reset clears any persisted nonce state for this manager.
+	//
+	// This is a local development utility for implementations that use distributed locking and persistent state.
+	// It is a no-op for in-process implementations.
+	//
+	// Must be called after safe.New but before any call to Acquire.
+	// Never call this in production. Doing so will corrupt nonce state and cause transaction failures.
+	Reset(ctx context.Context) error
 }

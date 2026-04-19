@@ -484,3 +484,27 @@ func TestCounterSeededOnce(t *testing.T) {
 		t.Fatalf("want counter 15 (seeded at 10, incremented 5 times), got %d", n)
 	}
 }
+
+func TestReset(t *testing.T) {
+	mr := miniredis.RunT(t)
+	src := &mockSource{nonces: []uint64{7, 9}}
+	m := newTestManager(t, mr, src, "worker-1")
+
+	_, slot, err := m.Acquire(context.Background())
+	if err != nil {
+		t.Fatal("error when Acquire called before")
+	}
+	defer slot.Commit()
+
+	exists, err := m.rdb.Exists(context.Background(), m.counterKey()).Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), exists)
+
+	err = m.Reset(context.Background())
+	require.NoError(t, err)
+
+	exists, err = m.rdb.Exists(context.Background(), m.counterKey()).Result()
+	require.NoError(t, err)
+
+	require.Equal(t, int64(0), exists)
+}
