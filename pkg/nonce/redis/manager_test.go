@@ -69,6 +69,8 @@ func newTestManager(t *testing.T, mr *miniredis.Miniredis, src *mockSource, inst
 		t.Fatalf("NewNonceManager: %v", err)
 	}
 
+	m.dirty.Store(false)
+
 	if err := m.Init(src, big.NewInt(137), common.HexToAddress("0x123")); err != nil {
 		t.Fatal(err)
 	}
