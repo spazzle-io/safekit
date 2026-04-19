@@ -93,13 +93,16 @@ func NewNonceManager(opts Options) (*NonceManager, error) {
 		staleNonceDelay = internalnonce.DefaultStaleNonceDelay
 	}
 
-	return &NonceManager{
+	nm := &NonceManager{
 		rdb:             opts.Redis,
 		instanceID:      opts.InstanceID,
 		lockTTL:         lockTTL,
 		pollInterval:    pollInterval,
 		staleNonceDelay: staleNonceDelay,
-	}, nil
+	}
+	nm.dirty.Store(true)
+
+	return nm, nil
 }
 
 // Init injects chain-specific context required for nonce management.
