@@ -254,7 +254,12 @@ func (t *TxManager) Deploy(
 }
 
 func (t *TxManager) IsDeployed(ctx context.Context, addr common.Address) (bool, error) {
-	code, err := t.client.CodeAt(ctx, addr, nil)
+	header, err := t.client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get latest block header: %w", err)
+	}
+
+	code, err := t.client.CodeAt(ctx, addr, header.Number)
 	if err != nil {
 		return false, err
 	}
