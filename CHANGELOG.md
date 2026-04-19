@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/spazzle-io/safekit/compare/v1.4.0...v1.5.0) (2026-04-19)
+
+
+### Features
+
+* add reset on nonce manager ([#28](https://github.com/spazzle-io/safekit/issues/28)) ([d1ba162](https://github.com/spazzle-io/safekit/commit/d1ba16273bae93b7fc018a3bd4339ea28c04836f))
+
 ## [1.4.0](https://github.com/spazzle-io/safekit/compare/v1.3.0...v1.4.0) (2026-04-18)
 
 
