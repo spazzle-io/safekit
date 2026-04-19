@@ -100,7 +100,6 @@ func NewNonceManager(opts Options) (*NonceManager, error) {
 		pollInterval:    pollInterval,
 		staleNonceDelay: staleNonceDelay,
 	}
-	nm.dirty.Store(true)
 
 	return nm, nil
 }

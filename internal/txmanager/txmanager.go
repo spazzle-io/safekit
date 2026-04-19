@@ -122,7 +122,13 @@ func (t *TxManager) Submit(
 		return common.Hash{}, fmt.Errorf("failed to acquire nonce slot: %w", err)
 	}
 
-	if deployed, checkErr := t.IsDeployed(ctx, predictedAddr); checkErr == nil && deployed {
+	deployed, err := t.IsDeployed(ctx, predictedAddr)
+	if err != nil {
+		slot.Reclaim()
+		return common.Hash{}, fmt.Errorf("failed to determine if contract is deployed: %w", err)
+	}
+
+	if deployed {
 		slot.Reuse()
 		return common.Hash{}, fmt.Errorf("%w: %s", ErrAddressAlreadyDeployed, predictedAddr.Hex())
 	}
