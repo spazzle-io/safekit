@@ -3,8 +3,8 @@ module github.com/spazzle-io/safekit
 go 1.24.0
 
 require (
-	github.com/alicebob/miniredis/v2 v2.37.0
-	github.com/ethereum/go-ethereum v1.17.2
+	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/ethereum/go-ethereum v1.17.3
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/stretchr/testify v1.11.1
 )
@@ -37,7 +37,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.41.0 // indirect
 	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
